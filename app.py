@@ -84,22 +84,30 @@ def get_or_create_calendar(service, name="Geburtstage"):
 
 def get_birthdays(people_service):
     emit_status("Lese Kontakte und Geburtstage...")
-    results = people_service.people().connections().list(
-        resourceName='people/me',
-        personFields='names,birthdays',
-        pageSize=1000
-    ).execute()
-
     birthdays = []
-    for person in results.get('connections', []):
-        names = person.get('names', [])
-        bdays = person.get('birthdays', [])
-        if names and bdays:
-            name = names[0].get('displayName')
-            for b in bdays:
-                date = b.get('date')
-                if date and date.get('month') and date.get('day'):
-                    birthdays.append({'name': name, 'date': date})
+    page_token = None
+    while True:
+        results = people_service.people().connections().list(
+            resourceName='people/me',
+            personFields='names,birthdays',
+            pageSize=1000,
+            pageToken=page_token
+        ).execute()
+
+        for person in results.get('connections', []):
+            names = person.get('names', [])
+            bdays = person.get('birthdays', [])
+            if names and bdays:
+                name = names[0].get('displayName')
+                for b in bdays:
+                    date = b.get('date')
+                    if date and date.get('month') and date.get('day'):
+                        birthdays.append({'name': name, 'date': date})
+
+        page_token = results.get('nextPageToken')
+        if not page_token:
+            break
+
     return birthdays
 
 def create_events(calendar_service, calendar_id, birthdays):
