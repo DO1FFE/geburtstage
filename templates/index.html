@@ -16,10 +16,22 @@
     <div id="log"></div>
 
     <script>
+        const logEl = document.getElementById('log');
+
         const socket = io();
         socket.on('status', msg => {
-            document.getElementById('log').innerText += msg + "\n";
+            logEl.innerText += msg + "\n";
+            logEl.scrollTop = logEl.scrollHeight;
         });
+
+        async function loadLog() {
+            const resp = await fetch('/logs');
+            if (resp.ok) {
+                logEl.innerText = await resp.text();
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+        }
+        loadLog();
 
         async function startSync() {
             const resp = await fetch('/sync');

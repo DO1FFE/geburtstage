@@ -1,15 +1,16 @@
 # 🎂 Google Geburtstagsimporter
 
-Ein Flask-Webinterface, um Geburtstage aus deinen Google-Kontakten automatisch in einen separaten Google Kalender ("Geburtstage") zu importieren – mit Web-GUI, Live-Statusanzeige und Dublettenprüfung.
+Ein Flask-Webinterface, um Geburtstage und andere datierte Ereignisse aus deinen Google-Kontakten automatisch in einen separaten Google Kalender ("Geburtstage") zu importieren – mit Web-GUI, Live-Statusanzeige und Dublettenprüfung.
 
 ## ✅ Features
 
-- Liest Geburtstage sowie weitere Ereignisse (z. B. Jahrestage) aus deinen Google Kontakten via People API
+- Liest Geburtstage **und alle anderen datierten Ereignisse** aus deinen Google Kontakten via People API
 - Erstellt oder nutzt den Kalender „Geburtstage“
-- Fügt nur **neue** Geburtstage ein (Vermeidung von Duplikaten)
+- Fügt nur **neue** Ereignisse ein (Vermeidung von Duplikaten)
 - Leert den Kalender vor jeder Synchronisierung
 - Webinterface mit Live-Statusanzeige (via Socket.IO)
 - Logging in `log.txt` mit Zeitstempeln
+- Logeinträge werden beim Laden der Webseite angezeigt
 - Lokale OAuth2-Autorisierung via `credentials.json`
 
 ## 🚀 Installation
@@ -40,5 +41,5 @@ Anmeldecode in das bereitgestellte Feld.
 
 Klicke anschließend im Browser auf **Jetzt synchronisieren**. Alle Statusmeldungen
 – inklusive der erfolgreich übertragenen Ereignisse – erscheinen live im Bereich
-"Log" auf der Webseite. Bei jeder Synchronisation wird außerdem automatisch eine
-Datei `Geburtstage.txt` erzeugt, die alle gefundenen Daten nach Datum sortiert enthält.
+"Log" auf der Webseite. Bei jeder Synchronisierung wird außerdem automatisch eine
+Datei `Geburtstage.txt` erzeugt, die alle gefundenen Ereignisse nach Datum sortiert enthält.
