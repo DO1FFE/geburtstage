@@ -24,14 +24,7 @@
             logEl.scrollTop = logEl.scrollHeight;
         });
 
-        async function loadLog() {
-            const resp = await fetch('/logs');
-            if (resp.ok) {
-                logEl.innerText = await resp.text();
-                logEl.scrollTop = logEl.scrollHeight;
-            }
-        }
-        loadLog();
+
 
         async function startSync() {
             const resp = await fetch('/sync');

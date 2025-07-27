@@ -9,8 +9,8 @@ Ein Flask-Webinterface, um Geburtstage und andere datierte Ereignisse aus deinen
 - Fügt nur **neue** Ereignisse ein (Vermeidung von Duplikaten)
 - Leert den Kalender vor jeder Synchronisierung
 - Webinterface mit Live-Statusanzeige (via Socket.IO)
-- Logging in `log.txt` mit Zeitstempeln
-- Logeinträge werden beim Laden der Webseite angezeigt
+- Log erscheint in Echtzeit direkt im Browser
+- Beim Hinzufügen steht im Log genau, welches Ereignis an welchem Datum für welche Person eingetragen wurde
 - Lokale OAuth2-Autorisierung via `credentials.json`
 
 ## 🚀 Installation
