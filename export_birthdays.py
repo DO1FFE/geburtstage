@@ -1,4 +1,4 @@
-from app import get_services, get_birthdays, write_birthdays_file
+from app import get_services, get_birthdays, get_additional_events, write_birthdays_file
 
 
 def export_to_file(filename: str = "Geburtstage.txt") -> None:
@@ -11,7 +11,9 @@ def export_to_file(filename: str = "Geburtstage.txt") -> None:
         people_service, _, _ = get_services(auth_code=code)
 
     birthdays = get_birthdays(people_service)
-    write_birthdays_file(birthdays, filename)
+    extras = get_additional_events(people_service)
+    all_events = birthdays + extras
+    write_birthdays_file(all_events, filename)
 
 
 if __name__ == "__main__":

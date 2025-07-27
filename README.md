@@ -4,7 +4,7 @@ Ein Flask-Webinterface, um Geburtstage aus deinen Google-Kontakten automatisch i
 
 ## ✅ Features
 
-- Liest Geburtstage aus deinen Google Kontakten via People API
+- Liest Geburtstage sowie weitere Ereignisse (z. B. Jahrestage) aus deinen Google Kontakten via People API
 - Erstellt oder nutzt den Kalender „Geburtstage“
 - Fügt nur **neue** Geburtstage ein (Vermeidung von Duplikaten)
 - Webinterface mit Live-Statusanzeige (via Socket.IO)
@@ -38,9 +38,9 @@ gefragt. Klicke auf den angezeigten Link, erteile den Zugriff und kopiere den
 Anmeldecode in das bereitgestellte Feld.
 
 Klicke anschließend im Browser auf **Jetzt synchronisieren**. Alle Statusmeldungen
-– inklusive der erfolgreich übertragenen Geburtstage – erscheinen live im Bereich
+– inklusive der erfolgreich übertragenen Ereignisse – erscheinen live im Bereich
 "Log" auf der Webseite. Bei jeder Synchronisation wird außerdem automatisch eine
-Datei `Geburtstage.txt` erzeugt, die alle Geburtstage nach Datum sortiert enthält.
+Datei `Geburtstage.txt` erzeugt, die alle gefundenen Daten nach Datum sortiert enthält.
 
 ## Geburtstage als Textdatei exportieren
 
@@ -52,6 +52,6 @@ python3 export_birthdays.py
 ```
 
 Nach der OAuth‑Autorisierung erstellt das Skript – genau wie die
-Synchronisation – die Datei `Geburtstage.txt`, in der alle Geburtstage
+Synchronisation – die Datei `Geburtstage.txt`, in der alle gefundenen Ereignisse
 nach Datum sortiert gelistet sind. Jede Zeile enthält das Datum im
-Format `TT.MM.JJJJ` gefolgt vom Namen.
+Format `TT.MM.JJJJ` gefolgt vom Namen und ggf. dem Ereignistyp.

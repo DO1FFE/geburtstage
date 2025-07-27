@@ -83,6 +83,7 @@ def get_or_create_calendar(service, name="Geburtstage"):
     return created['id']
 
 def get_birthdays(people_service):
+    """Fetch birthdays from Google contacts."""
     emit_status("Lese Kontakte und Geburtstage...")
     birthdays = []
     page_token = None
@@ -102,7 +103,12 @@ def get_birthdays(people_service):
                 for b in bdays:
                     date = b.get('date')
                     if date and date.get('month') and date.get('day'):
-                        birthdays.append({'name': name, 'date': date})
+                        birthdays.append({
+                            'name': name,
+                            'date': date,
+                            'event_type': 'birthday',
+                            'label': 'Geburtstag'
+                        })
 
         page_token = results.get('nextPageToken')
         if not page_token:
@@ -110,8 +116,57 @@ def get_birthdays(people_service):
 
     return birthdays
 
+
+def get_additional_events(people_service):
+    """Fetch anniversaries and child birthdays from Google contacts."""
+    emit_status("Lese Kontakte und weitere Ereignisse...")
+    events = []
+    page_token = None
+    while True:
+        results = people_service.people().connections().list(
+            resourceName='people/me',
+            personFields='names,events',
+            pageSize=1000,
+            pageToken=page_token
+        ).execute()
+
+        for person in results.get('connections', []):
+            names = person.get('names', [])
+            evs = person.get('events', [])
+            if not (names and evs):
+                continue
+            name = names[0].get('displayName')
+            for e in evs:
+                date = e.get('date')
+                if not date or not date.get('month') or not date.get('day'):
+                    continue
+                typ = (e.get('type') or '').lower()
+                label = e.get('formattedType') or e.get('customType') or typ
+                if typ == 'anniversary':
+                    events.append({
+                        'name': name,
+                        'date': date,
+                        'event_type': 'anniversary',
+                        'label': label
+                    })
+                elif typ in ('other', 'custom'):
+                    lbl_lower = label.lower()
+                    if 'child' in lbl_lower or 'kind' in lbl_lower:
+                        events.append({
+                            'name': name,
+                            'date': date,
+                            'event_type': 'child_birthday',
+                            'label': label
+                        })
+
+        page_token = results.get('nextPageToken')
+        if not page_token:
+            break
+
+    return events
+
 def write_birthdays_file(birthdays, filename="Geburtstage.txt"):
-    """Write sorted birthdays to a text file."""
+    """Write sorted events to a text file."""
     birthdays = sorted(
         birthdays,
         key=lambda b: (b['date']['month'], b['date']['day'], b['date'].get('year', 0))
@@ -122,11 +177,15 @@ def write_birthdays_file(birthdays, filename="Geburtstage.txt"):
             d = b['date']
             year = d.get('year', 2000)
             dt = datetime.date(year, d['month'], d['day'])
-            f.write(f"{dt.strftime('%d.%m.%Y')} {b['name']}\n")
+            line = f"{dt.strftime('%d.%m.%Y')} {b['name']}"
+            label = b.get('label')
+            if label and label.lower() != 'geburtstag':
+                line += f" ({label})"
+            f.write(line + "\n")
     emit_status(f"✏️ {filename} geschrieben")
 
 def create_events(calendar_service, calendar_id, birthdays):
-    emit_status("Prüfe vorhandene Geburtstage im Kalender...")
+    emit_status("Prüfe vorhandene Ereignisse im Kalender...")
     existing_events = calendar_service.events().list(
         calendarId=calendar_id,
         maxResults=2500,
@@ -147,7 +206,14 @@ def create_events(calendar_service, calendar_id, birthdays):
         day = d['day']
         year = d.get('year', 2000)
         dt = datetime.date(year, month, day)
-        summary = f'🎂 {name}'
+        event_type = b.get('event_type', 'birthday')
+        label = b.get('label', '')
+        if event_type == 'anniversary':
+            summary = f'💍 {name}'
+        elif event_type == 'child_birthday':
+            summary = f'🎂 {name} - {label}'
+        else:
+            summary = f'🎂 {name}'
         key = (summary, dt.isoformat())
 
         if key in existing:
@@ -159,14 +225,14 @@ def create_events(calendar_service, calendar_id, birthdays):
             'start': {'date': dt.isoformat()},
             'end': {'date': (dt + datetime.timedelta(days=1)).isoformat()},
             'recurrence': ['RRULE:FREQ=YEARLY'],
-            'description': f'Geburtstag von {name}',
+            'description': f'{label} von {name}' if label else f'Geburtstag von {name}',
             'transparency': 'transparent'
         }
 
         while True:
             try:
                 calendar_service.events().insert(calendarId=calendar_id, body=event).execute()
-                emit_status(f"✅ Geburtstag von {name} hinzugefügt")
+                emit_status(f"✅ Ereignis für {name} hinzugefügt")
                 time.sleep(1)
                 break
             except HttpError as e:
@@ -188,15 +254,17 @@ def sync_birthdays():
     calendar_id = get_or_create_calendar(calendar_service)
     try:
         birthdays = get_birthdays(people_service)
+        extra_events = get_additional_events(people_service)
+        all_events = birthdays + extra_events
     except HttpError as e:
         if e.resp.status == 403 and "SERVICE_DISABLED" in str(e):
             emit_status("❌ People API oder Calendar API ist nicht aktiviert. Bitte in der Google Cloud Console einschalten und erneut versuchen.")
         else:
             emit_status(f"❌ Fehler beim Abrufen der Kontakte: {e}")
         return "Error", 500
-    write_birthdays_file(birthdays)
+    write_birthdays_file(all_events)
     try:
-        create_events(calendar_service, calendar_id, birthdays)
+        create_events(calendar_service, calendar_id, all_events)
     except HttpError as e:
         emit_status(f"❌ Fehler beim Erstellen der Events: {e}")
         return "Error", 500
