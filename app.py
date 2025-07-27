@@ -6,6 +6,8 @@ from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+import time
 
 SCOPES = [
     'https://www.googleapis.com/auth/contacts.readonly',
@@ -128,8 +130,18 @@ def create_events(calendar_service, calendar_id, birthdays):
             'transparency': 'transparent'
         }
 
-        calendar_service.events().insert(calendarId=calendar_id, body=event).execute()
-        emit_status(f"✅ Geburtstag von {name} hinzugefügt")
+        while True:
+            try:
+                calendar_service.events().insert(calendarId=calendar_id, body=event).execute()
+                emit_status(f"✅ Geburtstag von {name} hinzugefügt")
+                time.sleep(1)
+                break
+            except HttpError as e:
+                if e.resp.status == 403 and 'rateLimitExceeded' in str(e):
+                    emit_status('⏳ Warte wegen Google Rate Limit...')
+                    time.sleep(2)
+                else:
+                    raise
 
 @app.route('/')
 def index():
@@ -141,8 +153,19 @@ def sync_birthdays():
     if auth_url:
         return jsonify({'auth_url': auth_url}), 401
     calendar_id = get_or_create_calendar(calendar_service)
-    birthdays = get_birthdays(people_service)
-    create_events(calendar_service, calendar_id, birthdays)
+    try:
+        birthdays = get_birthdays(people_service)
+    except HttpError as e:
+        if e.resp.status == 403 and "SERVICE_DISABLED" in str(e):
+            emit_status("❌ People API oder Calendar API ist nicht aktiviert. Bitte in der Google Cloud Console einschalten und erneut versuchen.")
+        else:
+            emit_status(f"❌ Fehler beim Abrufen der Kontakte: {e}")
+        return "Error", 500
+    try:
+        create_events(calendar_service, calendar_id, birthdays)
+    except HttpError as e:
+        emit_status(f"❌ Fehler beim Erstellen der Events: {e}")
+        return "Error", 500
     emit_status("🎉 Synchronisation abgeschlossen.")
     return "OK"
 
