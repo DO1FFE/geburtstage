@@ -25,6 +25,10 @@ Starte das Webinterface anschließend mit:
 python3 app.py
 ```
 
+### Google API Einrichtung
+
+Erstelle in der [Google Cloud Console](https://console.cloud.google.com/apis/credentials) einen OAuth2-Client vom Typ **Desktop-App** und lade die Datei `credentials.json` herunter. Diese Datei muss sich im selben Verzeichnis wie `app.py` befinden. Achte darauf, dass in den heruntergeladenen Daten die Standard-Redirect-URIs (`urn:ietf:wg:oauth:2.0:oob` und `http://localhost`) enthalten sind, damit die Anmeldung korrekt funktioniert.
+
 Die Anwendung ist dann unter `http://<SERVER-IP>:8022` erreichbar.
 
 Beim ersten Start wirst du auf der Webseite nach der Google-Autorisierung

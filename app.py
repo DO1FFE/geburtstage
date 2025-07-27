@@ -48,6 +48,8 @@ def get_services(auth_code=None):
         else:
             emit_status("Authentifiziere Benutzer über Google...")
             flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            # Explicit redirect URI required since run_console() is not used
+            flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
             auth_url, _ = flow.authorization_url(prompt='consent')
             return None, None, auth_url
 
