@@ -1,7 +1,6 @@
 import os
 import datetime
 import pickle
-import logging
 import signal
 import sys
 from flask import Flask, render_template, jsonify, request
@@ -16,22 +15,22 @@ SCOPES = [
     'https://www.googleapis.com/auth/calendar'
 ]
 
-# Logging konfigurieren
-logging.basicConfig(
-    filename='log.txt',
-    level=logging.INFO,
-    format='%(asctime)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+# Print all messages to console when True. When False only important
+# messages are shown.
+VERBOSE_CONSOLE = False
+
 
 app = Flask(__name__)
 socketio = SocketIO(app)
 
 def emit_status(msg):
-    socketio.emit('status', msg)
-    # Flush stdout so messages appear immediately
-    print(msg, flush=True)
-    logging.info(msg)
+    """Send a status message to the web UI and optionally print it."""
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    line = f"{timestamp} - {msg}"
+    socketio.emit('status', line)
+    important = any(x in msg for x in ('⚠️', '❌', '🎉', 'Server'))
+    if VERBOSE_CONSOLE or important:
+        print(line, flush=True)
 
 def handle_sigint(sig, frame):
     """Gracefully stop the server when CTRL-C is pressed."""
@@ -215,6 +214,7 @@ def create_events(calendar_service, calendar_id, events):
         day = d['day']
         year = d.get('year', 2000)
         dt = datetime.date(year, month, day)
+        date_str = dt.strftime('%d.%m.%Y')
         event_type = b.get('event_type', 'event')
         label = b.get('label', '')
         if event_type == 'birthday':
@@ -226,7 +226,7 @@ def create_events(calendar_service, calendar_id, events):
         key = (summary, dt.isoformat())
 
         if key in existing:
-            emit_status(f"⚠️ Ereignis '{summary}' bereits vorhanden – übersprungen")
+            emit_status(f"⚠️ {label} am {date_str} für {name} bereits vorhanden – übersprungen")
             continue
 
         event = {
@@ -241,7 +241,7 @@ def create_events(calendar_service, calendar_id, events):
         while True:
             try:
                 calendar_service.events().insert(calendarId=calendar_id, body=event).execute()
-                emit_status(f"✅ Ereignis für {name} hinzugefügt")
+                emit_status(f"✅ {label} am {date_str} für {name} eingetragen")
                 time.sleep(1)
                 break
             except HttpError as e:
@@ -284,14 +284,6 @@ def submit_code():
     code = request.json.get('code')
     get_services(auth_code=code)
     return 'OK'
-
-@app.route('/logs')
-def logs():
-    if os.path.exists('log.txt'):
-        with open('log.txt') as f:
-            content = f.read()
-        return content, 200, {'Content-Type': 'text/plain; charset=utf-8'}
-    return '', 200
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=8022, host="0.0.0.0")
