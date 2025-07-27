@@ -12,6 +12,7 @@
 <body>
     <h1>🎂 Google Geburtstagsimport</h1>
     <button onclick="startSync()">Jetzt synchronisieren</button>
+    <div id="auth"></div>
     <div id="log"></div>
 
     <script>
@@ -20,8 +21,26 @@
             document.getElementById('log').innerText += msg + "\n";
         });
 
-        function startSync() {
-            fetch('/sync');
+        async function startSync() {
+            const resp = await fetch('/sync');
+            if (resp.status === 401) {
+                const data = await resp.json();
+                document.getElementById('auth').innerHTML = `
+                    <p><a href="${data.auth_url}" target="_blank">Google Login öffnen</a></p>
+                    <input id="code" placeholder="Code hier eingeben">
+                    <button onclick="sendCode()">Code senden</button>`;
+            }
+        }
+
+        async function sendCode() {
+            const code = document.getElementById('code').value;
+            await fetch('/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+            document.getElementById('auth').innerHTML = '';
+            startSync();
         }
     </script>
 </body>
