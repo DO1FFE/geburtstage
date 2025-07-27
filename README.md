@@ -17,3 +17,12 @@ Ein Flask-Webinterface, um Geburtstage aus deinen Google-Kontakten automatisch i
 git clone https://github.com/dein-benutzername/geburtstagsimporter.git
 cd geburtstagsimporter
 pip install -r requirements.txt
+```
+
+Starte das Webinterface anschließend mit:
+
+```bash
+python3 app.py
+```
+
+Die Anwendung ist dann unter `http://<SERVER-IP>:8022` erreichbar.
