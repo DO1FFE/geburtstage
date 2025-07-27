@@ -3,6 +3,10 @@ import datetime
 import pickle
 import signal
 import sys
+
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -21,7 +25,7 @@ VERBOSE_CONSOLE = False
 
 
 app = Flask(__name__)
-socketio = SocketIO(app)
+socketio = SocketIO(app, async_mode='eventlet')
 
 def emit_status(msg):
     """Send a status message to the web UI and optionally print it."""
