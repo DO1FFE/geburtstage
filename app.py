@@ -1,17 +1,19 @@
 import os
 import datetime
-import pickle
+import json
+import uuid
 import signal
 import sys
 
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session
 from flask_socketio import SocketIO
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from google.oauth2.credentials import Credentials
 import time
 
 SCOPES = [
@@ -25,6 +27,7 @@ VERBOSE_CONSOLE = False
 
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'changeme')
 socketio = SocketIO(app, async_mode='eventlet')
 
 def emit_status(msg):
@@ -44,29 +47,38 @@ def handle_sigint(sig, frame):
 
 signal.signal(signal.SIGINT, handle_sigint)
 
-flow = None  # keep OAuth flow between requests
+flows = {}
+
+
+def _session_id():
+    if 'sid' not in session:
+        session['sid'] = str(uuid.uuid4())
+    return session['sid']
+
 
 def get_services(auth_code=None):
     creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
+    creds_json = session.get('creds')
+    if creds_json:
+        creds = Credentials.from_authorized_user_info(json.loads(creds_json), SCOPES)
 
-    global flow
+    sid = _session_id()
+    flow = flows.get(sid)
+
     if not creds or not creds.valid:
         if auth_code:
             if not flow:
                 raise RuntimeError("OAuth flow not initialized")
             flow.fetch_token(code=auth_code)
             creds = flow.credentials
-            with open('token.pickle', 'wb') as token:
-                pickle.dump(creds, token)
+            session['creds'] = creds.to_json()
+            flows.pop(sid, None)
         else:
             emit_status("Authentifiziere Benutzer über Google...")
             flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            # Explicit redirect URI required since run_console() is not used
             flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
             auth_url, _ = flow.authorization_url(prompt='consent')
+            flows[sid] = flow
             return None, None, auth_url
 
     people_service = build('people', 'v1', credentials=creds)

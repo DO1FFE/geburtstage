@@ -12,6 +12,7 @@ Ein Flask-Webinterface, um Geburtstage und andere datierte Ereignisse aus deinen
 - Log erscheint in Echtzeit direkt im Browser
 - Beim Hinzufügen steht im Log genau, welches Ereignis an welchem Datum für welche Person eingetragen wurde
 - Lokale OAuth2-Autorisierung via `credentials.json`
+- Jede Browsersitzung verwendet eigene OAuth-Daten (keine gemeinsame Token-Datei)
 
 ## 🚀 Installation
 
@@ -26,6 +27,9 @@ Starte das Webinterface anschließend mit:
 ```bash
 python3 app.py
 ```
+
+Optional kann über die Umgebungsvariable `FLASK_SECRET_KEY` ein eigener
+Session-Schlüssel gesetzt werden.
 
 ### Google API Einrichtung
 
