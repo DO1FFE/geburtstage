@@ -29,7 +29,8 @@ socketio = SocketIO(app)
 
 def emit_status(msg):
     socketio.emit('status', msg)
-    print(msg)
+    # Flush stdout so messages appear immediately
+    print(msg, flush=True)
     logging.info(msg)
 
 def handle_sigint(sig, frame):
