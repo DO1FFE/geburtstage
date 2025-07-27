@@ -26,3 +26,7 @@ python3 app.py
 ```
 
 Die Anwendung ist dann unter `http://<SERVER-IP>:8022` erreichbar.
+
+Beim ersten Start wirst du auf der Webseite nach der Google-Autorisierung
+gefragt. Klicke auf den angezeigten Link, erteile den Zugriff und kopiere den
+Anmeldecode in das bereitgestellte Feld.

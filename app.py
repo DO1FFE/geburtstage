@@ -2,7 +2,7 @@ import os
 import datetime
 import pickle
 import logging
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
@@ -28,22 +28,32 @@ def emit_status(msg):
     print(msg)
     logging.info(msg)
 
-def get_services():
+flow = None  # keep OAuth flow between requests
+
+def get_services(auth_code=None):
     creds = None
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
 
+    global flow
     if not creds or not creds.valid:
-        emit_status("Authentifiziere Benutzer über Google...")
-        flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-        creds = flow.run_local_server(port=0)
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
+        if auth_code:
+            if not flow:
+                raise RuntimeError("OAuth flow not initialized")
+            flow.fetch_token(code=auth_code)
+            creds = flow.credentials
+            with open('token.pickle', 'wb') as token:
+                pickle.dump(creds, token)
+        else:
+            emit_status("Authentifiziere Benutzer über Google...")
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            auth_url, _ = flow.authorization_url(prompt='consent')
+            return None, None, auth_url
 
     people_service = build('people', 'v1', credentials=creds)
     calendar_service = build('calendar', 'v3', credentials=creds)
-    return people_service, calendar_service
+    return people_service, calendar_service, None
 
 def get_or_create_calendar(service, name="Geburtstage"):
     emit_status(f"Suche nach Kalender '{name}'...")
@@ -125,12 +135,20 @@ def index():
 
 @app.route('/sync')
 def sync_birthdays():
-    people_service, calendar_service = get_services()
+    people_service, calendar_service, auth_url = get_services()
+    if auth_url:
+        return jsonify({'auth_url': auth_url}), 401
     calendar_id = get_or_create_calendar(calendar_service)
     birthdays = get_birthdays(people_service)
     create_events(calendar_service, calendar_id, birthdays)
     emit_status("🎉 Synchronisation abgeschlossen.")
     return "OK"
+
+@app.route('/auth', methods=['POST'])
+def submit_code():
+    code = request.json.get('code')
+    get_services(auth_code=code)
+    return 'OK'
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=8022, host="0.0.0.0")
