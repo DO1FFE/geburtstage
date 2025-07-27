@@ -2,6 +2,8 @@ import os
 import datetime
 import pickle
 import logging
+import signal
+import sys
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -29,6 +31,14 @@ def emit_status(msg):
     socketio.emit('status', msg)
     print(msg)
     logging.info(msg)
+
+def handle_sigint(sig, frame):
+    """Gracefully stop the server when CTRL-C is pressed."""
+    emit_status("Server wird beendet...")
+    socketio.stop()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, handle_sigint)
 
 flow = None  # keep OAuth flow between requests
 
