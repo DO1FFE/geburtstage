@@ -82,6 +82,16 @@ def get_or_create_calendar(service, name="Geburtstage"):
     created = service.calendars().insert(body=new_cal).execute()
     return created['id']
 
+def clear_calendar(service, calendar_id):
+    """Remove all events from the given calendar."""
+    emit_status("Lösche vorhandene Einträge im Kalender...")
+    try:
+        service.calendars().clear(calendarId=calendar_id).execute()
+        emit_status("Kalender geleert.")
+    except HttpError as e:
+        emit_status(f"❌ Fehler beim Leeren des Kalenders: {e}")
+        raise
+
 def get_birthdays(people_service):
     """Fetch birthdays from Google contacts."""
     emit_status("Lese Kontakte und Geburtstage...")
@@ -252,6 +262,7 @@ def sync_birthdays():
     if auth_url:
         return jsonify({'auth_url': auth_url}), 401
     calendar_id = get_or_create_calendar(calendar_service)
+    clear_calendar(calendar_service, calendar_id)
     try:
         birthdays = get_birthdays(people_service)
         extra_events = get_additional_events(people_service)
