@@ -85,12 +85,42 @@ def get_or_create_calendar(service, name="Geburtstage"):
 def clear_calendar(service, calendar_id):
     """Remove all events from the given calendar."""
     emit_status("Lösche vorhandene Einträge im Kalender...")
-    try:
-        service.calendars().clear(calendarId=calendar_id).execute()
+    page_token = None
+    deleted_any = False
+    while True:
+        try:
+            events = service.events().list(
+                calendarId=calendar_id,
+                pageToken=page_token,
+                maxResults=2500,
+            ).execute()
+        except HttpError as e:
+            emit_status(f"❌ Fehler beim Abrufen der Kalenderereignisse: {e}")
+            raise
+
+        for ev in events.get('items', []):
+            while True:
+                try:
+                    service.events().delete(calendarId=calendar_id, eventId=ev['id']).execute()
+                    deleted_any = True
+                    time.sleep(0.1)
+                    break
+                except HttpError as e:
+                    if e.resp.status == 403 and 'rateLimitExceeded' in str(e):
+                        emit_status('⏳ Warte wegen Google Rate Limit...')
+                        time.sleep(2)
+                    else:
+                        emit_status(f"❌ Fehler beim Löschen des Ereignisses '{ev.get('summary', '')}': {e}")
+                        break
+
+        page_token = events.get('nextPageToken')
+        if not page_token:
+            break
+
+    if deleted_any:
         emit_status("Kalender geleert.")
-    except HttpError as e:
-        emit_status(f"❌ Fehler beim Leeren des Kalenders: {e}")
-        raise
+    else:
+        emit_status("Kalender war bereits leer.")
 
 def get_birthdays(people_service):
     """Fetch birthdays from Google contacts."""
