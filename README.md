@@ -39,4 +39,19 @@ Anmeldecode in das bereitgestellte Feld.
 
 Klicke anschließend im Browser auf **Jetzt synchronisieren**. Alle Statusmeldungen
 – inklusive der erfolgreich übertragenen Geburtstage – erscheinen live im Bereich
-"Log" auf der Webseite.
+"Log" auf der Webseite. Bei jeder Synchronisation wird außerdem automatisch eine
+Datei `Geburtstage.txt` erzeugt, die alle Geburtstage nach Datum sortiert enthält.
+
+## Geburtstage als Textdatei exportieren
+
+Falls du nur die Textdatei ohne Kalender-Sync benötigst, kannst du das
+Skript `export_birthdays.py` separat aufrufen:
+
+```bash
+python3 export_birthdays.py
+```
+
+Nach der OAuth‑Autorisierung erstellt das Skript – genau wie die
+Synchronisation – die Datei `Geburtstage.txt`, in der alle Geburtstage
+nach Datum sortiert gelistet sind. Jede Zeile enthält das Datum im
+Format `TT.MM.JJJJ` gefolgt vom Namen.

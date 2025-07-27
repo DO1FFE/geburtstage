@@ -110,6 +110,21 @@ def get_birthdays(people_service):
 
     return birthdays
 
+def write_birthdays_file(birthdays, filename="Geburtstage.txt"):
+    """Write sorted birthdays to a text file."""
+    birthdays = sorted(
+        birthdays,
+        key=lambda b: (b['date']['month'], b['date']['day'], b['date'].get('year', 0))
+    )
+
+    with open(filename, 'w') as f:
+        for b in birthdays:
+            d = b['date']
+            year = d.get('year', 2000)
+            dt = datetime.date(year, d['month'], d['day'])
+            f.write(f"{dt.strftime('%d.%m.%Y')} {b['name']}\n")
+    emit_status(f"✏️ {filename} geschrieben")
+
 def create_events(calendar_service, calendar_id, birthdays):
     emit_status("Prüfe vorhandene Geburtstage im Kalender...")
     existing_events = calendar_service.events().list(
@@ -179,6 +194,7 @@ def sync_birthdays():
         else:
             emit_status(f"❌ Fehler beim Abrufen der Kontakte: {e}")
         return "Error", 500
+    write_birthdays_file(birthdays)
     try:
         create_events(calendar_service, calendar_id, birthdays)
     except HttpError as e:
