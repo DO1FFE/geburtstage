@@ -258,7 +258,7 @@ def create_events(calendar_service, calendar_id, events):
             try:
                 calendar_service.events().insert(calendarId=calendar_id, body=event).execute()
                 emit_status(f"✅ {label} am {date_str} für {name} eingetragen")
-                time.sleep(1)
+                time.sleep(0.5)
                 break
             except HttpError as e:
                 if e.resp.status == 403 and 'rateLimitExceeded' in str(e):
