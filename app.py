@@ -210,18 +210,29 @@ def write_events_file(events, filename="Geburtstage.txt"):
 
 def create_events(calendar_service, calendar_id, events):
     emit_status("Prüfe vorhandene Ereignisse im Kalender...")
-    existing_events = calendar_service.events().list(
-        calendarId=calendar_id,
-        maxResults=2500,
-        singleEvents=True,
-        orderBy='startTime'
-    ).execute()
-
     existing = set()
-    for event in existing_events.get('items', []):
-        if 'summary' in event and 'start' in event and 'date' in event['start']:
-            key = (event['summary'], event['start']['date'])
-            existing.add(key)
+    page_token = None
+    while True:
+        try:
+            existing_events = calendar_service.events().list(
+                calendarId=calendar_id,
+                maxResults=2500,
+                singleEvents=True,
+                orderBy='startTime',
+                pageToken=page_token,
+            ).execute()
+        except HttpError as e:
+            emit_status(f"❌ Fehler beim Abrufen der Kalenderereignisse: {e}")
+            raise
+
+        for event in existing_events.get('items', []):
+            if 'summary' in event and 'start' in event and 'date' in event['start']:
+                key = (event['summary'], event['start']['date'])
+                existing.add(key)
+
+        page_token = existing_events.get('nextPageToken')
+        if not page_token:
+            break
 
     for b in events:
         name = b['name']
