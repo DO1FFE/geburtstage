@@ -276,8 +276,6 @@ def sync_events():
     people_service, calendar_service, auth_url = get_services()
     if auth_url:
         return jsonify({'auth_url': auth_url}), 401
-    calendar_id = get_or_create_calendar(calendar_service)
-    clear_calendar(calendar_service, calendar_id)
     try:
         all_events = get_all_events(people_service)
     except HttpError as e:
@@ -286,6 +284,9 @@ def sync_events():
         else:
             emit_status(f"❌ Fehler beim Abrufen der Kontakte: {e}")
         return "Error", 500
+    emit_status("✅ Kontakte geladen – bereite Kalender vor...")
+    calendar_id = get_or_create_calendar(calendar_service)
+    clear_calendar(calendar_service, calendar_id)
     write_events_file(all_events)
     try:
         create_events(calendar_service, calendar_id, all_events)
