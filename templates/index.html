@@ -9,8 +9,11 @@
             font-family: Arial, sans-serif;
             background: linear-gradient(to bottom, #f5f5f5, #e0e0e0);
             display: flex;
-            justify-content: center;
-            padding: 2em;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 2em 0 5em 0;
         }
 
         #container {
@@ -53,6 +56,39 @@
             overflow-y: auto;
             text-align: left;
         }
+
+        footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: #ffffff;
+            border-top: 1px solid #d0d0d0;
+            padding: 0.75em 1em;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5em;
+            text-align: center;
+            font-size: 0.9em;
+            box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        footer a {
+            color: #3073e2;
+            text-decoration: none;
+            margin: 0 0.5em;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 1em;
+            flex-wrap: wrap;
+        }
     </style>
 </head>
 <body>
@@ -75,8 +111,20 @@
         <div id="log"></div>
     </div>
 
+    <footer>
+        <div class="footer-links">
+            <a href="{{ url_for('privacy') }}">Datenschutzerklärung</a>
+            <a href="{{ url_for('terms') }}">Nutzungsbedingungen</a>
+        </div>
+        <div>
+            © 2025 - <span id="current-year"></span> Erik Schauer - do1ffe@darc.de
+        </div>
+    </footer>
+
     <script>
         const logEl = document.getElementById('log');
+        const yearEl = document.getElementById('current-year');
+        yearEl.textContent = new Date().getFullYear();
 
         const socket = io();
         socket.on('status', msg => {
