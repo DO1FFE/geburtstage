@@ -282,6 +282,14 @@ def create_events(calendar_service, calendar_id, events):
 def index():
     return render_template('index.html')
 
+@app.route('/datenschutz')
+def privacy():
+    return render_template('datenschutz.html')
+
+@app.route('/nutzungsbedingungen')
+def terms():
+    return render_template('nutzungsbedingungen.html')
+
 @app.route('/sync')
 def sync_events():
     people_service, calendar_service, auth_url = get_services()
