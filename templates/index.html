@@ -101,10 +101,10 @@
         </p>
         <p>
             Klicke auf <em>Jetzt synchronisieren</em>, um die Kontakte einzulesen und
-            den Kalender zu aktualisieren. Beim ersten Aufruf erscheint ein Link zur
-            Google-Anmeldung. Dort erhältst du einen Code, den du hier eingeben
-            musst. Danach wird der Kalender geleert und neu befüllt. Alle Meldungen
-            erscheinen live im Log unten.
+            den Kalender zu aktualisieren. Beim ersten Aufruf öffnet sich die
+            Google-Anmeldung. Nach der Bestätigung kehrst du automatisch zur
+            Web-App zurück. Danach wird der Kalender geleert und neu befüllt.
+            Alle Meldungen erscheinen live im Log unten.
         </p>
         <button onclick="startSync()">Jetzt synchronisieren</button>
         <div id="auth"></div>
@@ -139,21 +139,9 @@
             if (resp.status === 401) {
                 const data = await resp.json();
                 document.getElementById('auth').innerHTML = `
-                    <p><a href="${data.auth_url}" target="_blank">Google Login öffnen</a></p>
-                    <input id="code" placeholder="Code hier eingeben">
-                    <button onclick="sendCode()">Code senden</button>`;
+                    <p><a href="${data.auth_url}" target="_blank">Google-Anmeldung öffnen</a></p>
+                    <p>Anmeldung läuft… Nach der Bestätigung wirst du automatisch zurückgeleitet.</p>`;
             }
-        }
-
-        async function sendCode() {
-            const code = document.getElementById('code').value;
-            await fetch('/auth', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code })
-            });
-            document.getElementById('auth').innerHTML = '';
-            startSync();
         }
     </script>
 </body>
