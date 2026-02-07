@@ -143,6 +143,15 @@
                     <p>Anmeldung läuft… Nach der Bestätigung wirst du automatisch zurückgeleitet.</p>`;
             }
         }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('autostart') === '1') {
+            startSync();
+            urlParams.delete('autostart');
+            const neueQuery = urlParams.toString();
+            const neueUrl = `${window.location.pathname}${neueQuery ? `?${neueQuery}` : ''}${window.location.hash}`;
+            history.replaceState(null, '', neueUrl);
+        }
     </script>
 </body>
 </html>

@@ -346,7 +346,7 @@ def oauth2callback():
     flows.pop(state, None)
     session.pop('oauth_state', None)
     emit_status("✅ OAuth erfolgreich abgeschlossen.")
-    return redirect(url_for('index'))
+    return redirect(url_for('index', autostart=1))
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=8022, host="0.0.0.0")
