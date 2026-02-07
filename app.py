@@ -28,7 +28,7 @@ VERBOSE_CONSOLE = False
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'changeme')
-app.config['PREFERRED_URL_SCHEME'] = os.environ.get('PREFERRED_URL_SCHEME', 'http')
+app.config['PREFERRED_URL_SCHEME'] = os.environ.get('PREFERRED_URL_SCHEME', 'https')
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 socketio = SocketIO(app, async_mode='eventlet')
 
@@ -56,8 +56,11 @@ def get_redirect_uri():
     """Ermittelt die Redirect-URL dynamisch oder nutzt eine gesetzte Vorgabe."""
     redirect_override = os.environ.get('OAUTH_REDIRECT_URI')
     if redirect_override:
+        emit_status(f"OAuth-Redirect-URI (Umgebung): {redirect_override}")
         return redirect_override
-    return url_for("oauth2callback", _external=True)
+    uri = url_for("oauth2callback", _external=True)
+    emit_status(f"OAuth-Redirect-URI (berechnet): {uri}")
+    return uri
 
 
 def get_services():
