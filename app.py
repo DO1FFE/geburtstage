@@ -50,7 +50,14 @@ def handle_sigint(sig, frame):
 signal.signal(signal.SIGINT, handle_sigint)
 
 flows = {}
-REDIRECT_URI = os.environ.get('OAUTH_REDIRECT_URI', 'https://calendar.do1ffe.de/oauth2callback')
+
+
+def get_redirect_uri():
+    """Ermittelt die Redirect-URL dynamisch oder nutzt eine gesetzte Vorgabe."""
+    redirect_override = os.environ.get('OAUTH_REDIRECT_URI')
+    if redirect_override:
+        return redirect_override
+    return url_for("oauth2callback", _external=True)
 
 
 def get_services():
@@ -62,7 +69,7 @@ def get_services():
     if not creds or not creds.valid:
         emit_status("Authentifiziere Benutzer über Google...")
         flow = Flow.from_client_secrets_file('credentials.json', scopes=SCOPES)
-        flow.redirect_uri = REDIRECT_URI
+        flow.redirect_uri = get_redirect_uri()
         auth_url, state = flow.authorization_url(prompt='consent', include_granted_scopes='true')
         flows[state] = flow
         session['oauth_state'] = state
