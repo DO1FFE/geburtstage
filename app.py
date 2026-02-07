@@ -9,10 +9,11 @@ eventlet.monkey_patch()
 
 from flask import Flask, render_template, jsonify, request, session, url_for, redirect
 from flask_socketio import SocketIO
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2.credentials import Credentials
+from werkzeug.middleware.proxy_fix import ProxyFix
 import time
 
 SCOPES = [
@@ -27,6 +28,8 @@ VERBOSE_CONSOLE = False
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'changeme')
+app.config['PREFERRED_URL_SCHEME'] = os.environ.get('PREFERRED_URL_SCHEME', 'http')
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 socketio = SocketIO(app, async_mode='eventlet')
 
 def emit_status(msg):
@@ -47,6 +50,7 @@ def handle_sigint(sig, frame):
 signal.signal(signal.SIGINT, handle_sigint)
 
 flows = {}
+REDIRECT_URI = os.environ.get('OAUTH_REDIRECT_URI', 'https://calendar.do1ffe.de/oauth2callback')
 
 
 def get_services():
@@ -57,8 +61,8 @@ def get_services():
 
     if not creds or not creds.valid:
         emit_status("Authentifiziere Benutzer über Google...")
-        flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-        flow.redirect_uri = url_for('oauth2callback', _external=True)
+        flow = Flow.from_client_secrets_file('credentials.json', scopes=SCOPES)
+        flow.redirect_uri = REDIRECT_URI
         auth_url, state = flow.authorization_url(prompt='consent', include_granted_scopes='true')
         flows[state] = flow
         session['oauth_state'] = state
