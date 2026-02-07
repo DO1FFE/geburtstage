@@ -1,14 +1,13 @@
 import os
 import datetime
 import json
-import uuid
 import signal
 import sys
 
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, render_template, jsonify, request, session
+from flask import Flask, render_template, jsonify, request, session, url_for, redirect
 from flask_socketio import SocketIO
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
@@ -50,36 +49,20 @@ signal.signal(signal.SIGINT, handle_sigint)
 flows = {}
 
 
-def _session_id():
-    if 'sid' not in session:
-        session['sid'] = str(uuid.uuid4())
-    return session['sid']
-
-
-def get_services(auth_code=None):
+def get_services():
     creds = None
     creds_json = session.get('creds')
     if creds_json:
         creds = Credentials.from_authorized_user_info(json.loads(creds_json), SCOPES)
 
-    sid = _session_id()
-    flow = flows.get(sid)
-
     if not creds or not creds.valid:
-        if auth_code:
-            if not flow:
-                raise RuntimeError("OAuth flow not initialized")
-            flow.fetch_token(code=auth_code)
-            creds = flow.credentials
-            session['creds'] = creds.to_json()
-            flows.pop(sid, None)
-        else:
-            emit_status("Authentifiziere Benutzer über Google...")
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
-            auth_url, _ = flow.authorization_url(prompt='consent')
-            flows[sid] = flow
-            return None, None, auth_url
+        emit_status("Authentifiziere Benutzer über Google...")
+        flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+        flow.redirect_uri = url_for('oauth2callback', _external=True)
+        auth_url, state = flow.authorization_url(prompt='consent', include_granted_scopes='true')
+        flows[state] = flow
+        session['oauth_state'] = state
+        return None, None, auth_url
 
     people_service = build('people', 'v1', credentials=creds)
     calendar_service = build('calendar', 'v3', credentials=creds)
@@ -315,11 +298,41 @@ def sync_events():
     emit_status("🎉 Synchronisation abgeschlossen.")
     return "OK"
 
-@app.route('/auth', methods=['POST'])
-def submit_code():
-    code = request.json.get('code')
-    get_services(auth_code=code)
-    return 'OK'
+@app.route('/oauth2callback')
+def oauth2callback():
+    error = request.args.get('error')
+    if error:
+        emit_status(f"❌ OAuth-Fehler: {error}")
+        return "OAuth-Fehler", 400
+
+    state = request.args.get('state')
+    code = request.args.get('code')
+    if not state or not code:
+        emit_status("❌ OAuth-Callback unvollständig (state oder code fehlt).")
+        return "Ungültiger OAuth-Callback", 400
+
+    expected_state = session.get('oauth_state')
+    if expected_state != state:
+        emit_status("❌ OAuth-Status stimmt nicht mit der Session überein.")
+        return "Ungültiger OAuth-Status", 400
+
+    flow = flows.get(state)
+    if not flow:
+        emit_status("❌ OAuth-Flow nicht gefunden. Bitte erneut starten.")
+        return "OAuth-Flow fehlt", 400
+
+    try:
+        flow.fetch_token(code=code)
+    except Exception as exc:
+        emit_status(f"❌ Fehler beim Abrufen des Tokens: {exc}")
+        return "OAuth-Fehler", 500
+
+    creds = flow.credentials
+    session['creds'] = creds.to_json()
+    flows.pop(state, None)
+    session.pop('oauth_state', None)
+    emit_status("✅ OAuth erfolgreich abgeschlossen.")
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=8022, host="0.0.0.0")
