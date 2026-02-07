@@ -35,11 +35,16 @@ Session-Schlüssel gesetzt werden.
 
 Bevor du die Anwendung startest, musst du in der Google Cloud Console sowohl die **People API** als auch die **Calendar API** für dein Projekt aktivieren. Andernfalls endet der Zugriff auf deine Kontakte mit einem 403-Fehler.
 
-Erstelle anschließend in der [Google Cloud Console](https://console.cloud.google.com/apis/credentials) einen OAuth2-Client vom Typ **Webanwendung** und lade die Datei `credentials.json` herunter. Diese Datei muss sich im selben Verzeichnis wie `app.py` befinden. Gib dem Client einen klaren Namen (z. B. „Geburtstagsimporter Web-App“) und hinterlege die autorisierten Redirect-URIs für deine Web-App. Die Einträge müssen **exakt** mit Schema, Host und Port übereinstimmen (inklusive `/oauth2callback`), zum Beispiel:
+Erstelle anschließend in der [Google Cloud Console](https://console.cloud.google.com/apis/credentials) einen OAuth2-Client vom Typ **Webanwendung** und lade die Datei `credentials.json` herunter. Diese Datei muss sich im selben Verzeichnis wie `app.py` befinden. Gib dem Client einen klaren Namen (z. B. „Geburtstagsimporter Web-App“) und hinterlege die autorisierten Redirect-URIs für deine Web-App. Die Einträge müssen **exakt** mit Schema, Host und Port übereinstimmen (inklusive `/oauth2callback`). Gehe dabei wie folgt vor:
 
-- `http://localhost:8022/oauth2callback` (lokale Entwicklung)
-- `http://<SERVER-IP>:8022/oauth2callback` (Serverbetrieb mit direktem HTTP-Zugriff)
-- `https://geburtstage.example.de/oauth2callback` (Reverse-Proxy mit TLS)
+1. In der Google Cloud Console → **APIs & Dienste** → **Anmeldedaten** → OAuth‑Client (**Webanwendung**) öffnen.
+2. Unter „Autorisierte Redirect‑URIs“ die **exakt** verwendete URL eintragen (inkl. Schema, Host, Port und `/oauth2callback`).
+3. Typische Beispiele:
+
+   * `http://localhost:8022/oauth2callback`
+   * `http://<SERVER-IP>:8022/oauth2callback`
+   * `https://geburtstage.example.de/oauth2callback`
+4. Änderungen speichern und erneut den OAuth‑Flow starten.
 
 Die Anwendung ist dann unter `http://<SERVER-IP>:8022` erreichbar.
 
