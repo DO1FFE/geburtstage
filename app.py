@@ -209,6 +209,8 @@ def create_events(calendar_service, calendar_id, events):
     emit_status("Prüfe vorhandene Ereignisse im Kalender...")
     existing = set()
     page_token = None
+    created_count = 0
+    skipped_count = 0
     while True:
         try:
             existing_events = calendar_service.events().list(
@@ -251,6 +253,7 @@ def create_events(calendar_service, calendar_id, events):
 
         if key in existing:
             emit_status(f"⚠️ {label} am {date_str} für {name} bereits vorhanden – übersprungen")
+            skipped_count += 1
             continue
 
         event = {
@@ -266,6 +269,7 @@ def create_events(calendar_service, calendar_id, events):
             try:
                 calendar_service.events().insert(calendarId=calendar_id, body=event).execute()
                 emit_status(f"✅ {label} am {date_str} für {name} eingetragen")
+                created_count += 1
                 time.sleep(0.5)
                 break
             except HttpError as e:
@@ -274,6 +278,7 @@ def create_events(calendar_service, calendar_id, events):
                     time.sleep(2)
                 else:
                     raise
+    return created_count, skipped_count
 
 @app.route('/')
 def index():
@@ -305,11 +310,17 @@ def sync_events():
     clear_calendar(calendar_service, calendar_id)
     write_events_file(all_events)
     try:
-        create_events(calendar_service, calendar_id, all_events)
+        created_count, skipped_count = create_events(calendar_service, calendar_id, all_events)
     except HttpError as e:
         emit_status(f"❌ Fehler beim Erstellen der Events: {e}")
         return "Error", 500
-    emit_status("🎉 Synchronisation abgeschlossen.")
+    if skipped_count:
+        emit_status(
+            f"🎉 Synchronisation abgeschlossen. {created_count} Einträge in den Kalender geschrieben. "
+            f"{skipped_count} Einträge waren bereits vorhanden."
+        )
+    else:
+        emit_status(f"🎉 Synchronisation abgeschlossen. {created_count} Einträge in den Kalender geschrieben.")
     return "OK"
 
 @app.route('/oauth2callback')
