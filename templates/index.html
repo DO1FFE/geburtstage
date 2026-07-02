@@ -2,147 +2,170 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Google Geburtstagsimport</title>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9376188585752918"
             crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=20260531-0114">
     <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(to bottom, #f5f5f5, #e0e0e0);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 2em 0 5em 0;
-        }
-
-        #container {
-            width: 100%;
-            text-align: center;
-        }
-
-        button {
-            background-color: #4285f4;
-            color: white;
-            border: none;
-            padding: 0.6em 1.2em;
-            font-size: 1em;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background-color: #3073e2;
-        }
-
-        #auth {
-            margin: 1em 0;
-        }
-
-        #auth input {
-            padding: 0.5em;
-        }
-
-        #log {
-            width: 75vw;
-            margin: 1em auto 0 auto;
-            white-space: pre-wrap;
-            background: white;
-            padding: 1em;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            line-height: 1.4em;
-            max-height: calc(1.4em * 10);
-            overflow-y: auto;
-            text-align: left;
-        }
-
-        footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: #ffffff;
-            border-top: 1px solid #d0d0d0;
-            padding: 0.75em 1em;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5em;
-            text-align: center;
-            font-size: 0.9em;
-            box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.05);
-        }
-
-        footer a {
-            color: #3073e2;
-            text-decoration: none;
-            margin: 0 0.5em;
-        }
-
-        footer a:hover {
-            text-decoration: underline;
-        }
-
-        .footer-links {
-            display: flex;
-            justify-content: center;
-            gap: 1em;
-            flex-wrap: wrap;
-        }
-    </style>
 </head>
 <body>
-    <div id="container">
-        <h1>🎂 Google Geburtstagsimport</h1>
-        <p>
-            Dieses Webinterface überträgt Geburtstage und andere datierte Ereignisse
-            aus deinen Google-Kontakten in einen eigenen Kalender namens
-            <strong>"Geburtstage"</strong>.
-        </p>
-        <p>
-            Klicke auf <em>Jetzt synchronisieren</em>, um die Kontakte einzulesen und
-            den Kalender zu aktualisieren. Beim ersten Aufruf öffnet sich die
-            Google-Anmeldung. Nach der Bestätigung kehrst du automatisch zur
-            Web-App zurück. Danach wird der Kalender geleert und neu befüllt.
-            Alle Meldungen erscheinen live im Log unten.
-        </p>
-        <button onclick="startSync()">Jetzt synchronisieren</button>
-        <div id="auth"></div>
-        <div id="log"></div>
-    </div>
+    <div class="seitenrahmen">
+        <header class="app-kopf">
+            <div class="marke">
+                <div class="marken-symbol" aria-hidden="true">31</div>
+                <div class="marken-text">
+                    <p class="eyebrow">Google Kontakte</p>
+                    <h1>Geburtstagsimport</h1>
+                </div>
+            </div>
+            <nav class="kopfnavigation" aria-label="Seitennavigation">
+                <a class="kopf-link" href="{{ url_for('privacy') }}">Datenschutz</a>
+                <a class="kopf-link" href="{{ url_for('terms') }}">Nutzungsbedingungen</a>
+            </nav>
+        </header>
 
-    <footer>
-        <div class="footer-links">
-            <a href="{{ url_for('privacy') }}">Datenschutzerklärung</a>
-            <a href="{{ url_for('terms') }}">Nutzungsbedingungen</a>
-        </div>
-        <div>
-            © 2025 - <span id="current-year"></span> Erik Schauer - do1ffe@darc.de
-        </div>
-    </footer>
+        <section class="einleitung" aria-label="Beschreibung">
+            <p>
+                Dieses Webinterface überträgt Geburtstage und andere datierte Ereignisse
+                aus deinen Google-Kontakten in einen eigenen Kalender namens
+                <strong>„Geburtstage“</strong>.
+            </p>
+            <p>
+                Klicke auf <strong>Jetzt synchronisieren</strong>, um die Kontakte einzulesen und
+                den Kalender zu aktualisieren. Beim ersten Aufruf öffnet sich die Google-Anmeldung.
+                Nach der Bestätigung kehrst du automatisch zur Web-App zurück. Danach wird der
+                Kalender geleert und neu befüllt. Alle Meldungen erscheinen live im Protokoll.
+            </p>
+        </section>
+
+        <main class="arbeitsbereich">
+            <section class="bedienfeld" aria-labelledby="sync-titel">
+                <h2 id="sync-titel">Synchronisieren</h2>
+                <p>Der Ablauf startet erst nach deiner Google-Freigabe.</p>
+
+                <div class="statusleiste" aria-label="Status">
+                    <div class="statuszeile">
+                        <span class="status-label">Zielkalender</span>
+                        <span class="status-wert">Geburtstage</span>
+                    </div>
+                    <div class="statuszeile">
+                        <span class="status-label">Einfügen</span>
+                        <span class="status-wert">zügig</span>
+                    </div>
+                    <div class="statuszeile">
+                        <span class="status-label">Status</span>
+                        <span class="status-wert" id="oberstatus">Bereit</span>
+                    </div>
+                </div>
+
+                <button class="primärknopf" id="sync-button" type="button" onclick="startSync()">
+                    <span class="knopf-symbol" aria-hidden="true">↻</span>
+                    <span>Jetzt synchronisieren</span>
+                </button>
+
+                <div class="auth-hinweis" id="auth" aria-live="polite"></div>
+            </section>
+
+            <section class="protokollfeld" aria-labelledby="log-titel">
+                <div class="protokollkopf">
+                    <h2 id="log-titel">Live-Protokoll</h2>
+                    <div class="live-status">
+                        <span class="live-punkt" aria-hidden="true"></span>
+                        <span id="live-status">Verbunden</span>
+                    </div>
+                </div>
+                <pre class="log" id="log" aria-live="polite"></pre>
+            </section>
+        </main>
+
+        <footer class="site-footer">
+            <div class="footer-links">
+                <a href="{{ url_for('privacy') }}">Datenschutzerklärung</a>
+                <a href="{{ url_for('terms') }}">Nutzungsbedingungen</a>
+            </div>
+            <div>
+                © 2025 - <span id="current-year"></span> Erik Schauer - do1ffe@darc.de
+            </div>
+        </footer>
+    </div>
 
     <script>
         const logEl = document.getElementById('log');
+        const authEl = document.getElementById('auth');
+        const syncButton = document.getElementById('sync-button');
+        const oberstatusEl = document.getElementById('oberstatus');
+        const liveStatusEl = document.getElementById('live-status');
+        const csrfToken = "{{ csrf_token }}";
         const yearEl = document.getElementById('current-year');
         yearEl.textContent = new Date().getFullYear();
 
         const socket = io();
+        socket.on('connect', () => {
+            liveStatusEl.textContent = 'Verbunden';
+        });
+        socket.on('disconnect', () => {
+            liveStatusEl.textContent = 'Getrennt';
+        });
         socket.on('status', msg => {
-            logEl.innerText += msg + "\n";
+            logEl.textContent += msg + "\n";
             logEl.scrollTop = logEl.scrollHeight;
+
+            if (msg.includes('🎉')) {
+                oberstatusEl.textContent = 'Abgeschlossen';
+                syncButton.disabled = false;
+            } else if (msg.includes('❌')) {
+                oberstatusEl.textContent = 'Fehler';
+                syncButton.disabled = false;
+            } else {
+                oberstatusEl.textContent = 'Läuft';
+            }
         });
 
+        function zeigeAuthLink(authUrl) {
+            authEl.replaceChildren();
 
+            const box = document.createElement('div');
+            box.className = 'auth-box';
+
+            const link = document.createElement('a');
+            link.className = 'auth-link';
+            link.href = authUrl;
+            link.textContent = 'Google-Anmeldung öffnen';
+
+            const hinweis = document.createElement('p');
+            hinweis.textContent = 'Nach der Bestätigung läuft die Synchronisation automatisch weiter.';
+
+            box.append(link, hinweis);
+            authEl.appendChild(box);
+        }
 
         async function startSync() {
-            const resp = await fetch('/sync');
+            syncButton.disabled = true;
+            oberstatusEl.textContent = 'Startet';
+            authEl.replaceChildren();
+
+            const resp = await fetch('/sync', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRF-Token': csrfToken
+                }
+            });
+
             if (resp.status === 401) {
                 const data = await resp.json();
-                document.getElementById('auth').innerHTML = `
-                    <p><a href="${data.auth_url}" target="_blank">Google-Anmeldung öffnen</a></p>
-                    <p>Anmeldung läuft… Nach der Bestätigung wirst du automatisch zurückgeleitet.</p>`;
+                zeigeAuthLink(data.auth_url);
+                oberstatusEl.textContent = 'Anmeldung';
+                syncButton.disabled = false;
+            } else if (!resp.ok) {
+                logEl.textContent += "Synchronisation konnte nicht gestartet werden.\n";
+                logEl.scrollTop = logEl.scrollHeight;
+                oberstatusEl.textContent = 'Fehler';
+                syncButton.disabled = false;
+            } else {
+                oberstatusEl.textContent = 'Abgeschlossen';
+                syncButton.disabled = false;
             }
         }
 

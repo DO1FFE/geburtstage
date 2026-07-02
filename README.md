@@ -29,7 +29,13 @@ python3 app.py
 ```
 
 Optional kann über die Umgebungsvariable `FLASK_SECRET_KEY` ein eigener
-Session-Schlüssel gesetzt werden.
+Session-Schlüssel gesetzt werden. Für den Betrieb ist ein solcher Schlüssel
+Pflicht. Die Anwendung lädt außerdem eine lokale, nicht versionierte Datei
+`.env`, falls der Schlüssel nicht bereits durch den Dienst gesetzt wurde.
+Für lokale Tests ohne HTTPS kann `FLASK_SESSION_COOKIE_SECURE=0` gesetzt werden.
+Die Einfügegeschwindigkeit kann über `EINFUEGE_PAUSE_SEKUNDEN` angepasst werden;
+Standard sind `0.1` Sekunden pro Kalendereintrag. Bei Google-Rate-Limits nutzt
+die Anwendung automatisch exponentiellen Backoff.
 
 ### Google API Einrichtung
 
@@ -58,3 +64,4 @@ Klicke anschließend im Browser auf **Jetzt synchronisieren**. Alle Statusmeldun
 – inklusive der erfolgreich übertragenen Ereignisse – erscheinen live im Bereich
 "Log" auf der Webseite. Bei jeder Synchronisierung wird außerdem automatisch eine
 Datei `Geburtstage.txt` erzeugt, die alle gefundenen Ereignisse nach Datum sortiert enthält.
+Diese Datei enthält personenbezogene Daten und wird deshalb nicht versioniert.

@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+
+.env
+instance/
+
+credentials.json
+credentials_*.json
+token.pickle
+log.txt
+Geburtstage.txt

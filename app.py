@@ -1,14 +1,18 @@
-import os
-import datetime
-import json
-import signal
-import sys
-
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, render_template, jsonify, request, session, url_for, redirect
-from flask_socketio import SocketIO
+import os
+import datetime
+import json
+import random
+import signal
+import secrets
+import sys
+from zoneinfo import ZoneInfo
+
+from flask import Flask, render_template, jsonify, request, session, url_for, redirect, has_request_context
+from flask_socketio import SocketIO, join_room
+from google.auth.transport.requests import Request as GoogleAuthRequest
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -24,22 +28,140 @@ SCOPES = [
 # Print all messages to console when True. When False only important
 # messages are shown.
 VERBOSE_CONSOLE = False
+PROJEKT_DIR = os.path.dirname(os.path.abspath(__file__))
+ANZEIGE_ZEITZONE = ZoneInfo('Europe/Berlin')
 
+
+def umgebung_ist_wahr(name, standard=False):
+    """Liest boolesche Einstellungen aus Umgebungsvariablen."""
+    wert = os.environ.get(name)
+    if wert is None:
+        return standard
+    return wert.lower() in ('1', 'true', 'yes', 'ja', 'on')
+
+
+def umgebung_als_float(name, standard):
+    """Liest eine Fließkommazahl aus der Umgebung."""
+    wert = os.environ.get(name)
+    if wert is None:
+        return standard
+    return float(wert)
+
+
+def umgebung_als_int(name, standard):
+    """Liest eine Ganzzahl aus der Umgebung."""
+    wert = os.environ.get(name)
+    if wert is None:
+        return standard
+    return int(wert)
+
+
+def lade_env_datei(pfad=None):
+    """Lädt lokale Umgebungswerte aus .env, ohne bestehende Werte zu überschreiben."""
+    env_pfad = pfad or os.path.join(PROJEKT_DIR, '.env')
+    if not os.path.exists(env_pfad):
+        return
+
+    with open(env_pfad, 'r', encoding='utf-8') as datei:
+        for zeile in datei:
+            zeile = zeile.strip()
+            if not zeile or zeile.startswith('#') or '=' not in zeile:
+                continue
+            name, wert = zeile.split('=', 1)
+            name = name.strip()
+            wert = wert.strip().strip('"').strip("'")
+            if name and name not in os.environ:
+                os.environ[name] = wert
+
+
+def lade_flask_secret_key():
+    """Erzwingt einen eigenen geheimen Schlüssel für produktive Sessions."""
+    secret_key = os.environ.get('FLASK_SECRET_KEY')
+    if not secret_key:
+        raise RuntimeError(
+            "FLASK_SECRET_KEY muss gesetzt sein, damit Sessions auf calendar.do1ffe.de sicher signiert werden."
+        )
+    return secret_key
+
+
+def aktueller_zeitstempel():
+    """Liefert den aktuellen Status-Zeitstempel in deutscher Ortszeit."""
+    return datetime.datetime.now(ANZEIGE_ZEITZONE).strftime('%Y-%m-%d %H:%M:%S %Z (Europe/Berlin)')
+
+
+lade_env_datei()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'changeme')
-app.config['PREFERRED_URL_SCHEME'] = os.environ.get('PREFERRED_URL_SCHEME', 'https')
+app.secret_key = lade_flask_secret_key()
+app.config.update(
+    PREFERRED_URL_SCHEME=os.environ.get('PREFERRED_URL_SCHEME', 'https'),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=umgebung_ist_wahr('FLASK_SESSION_COOKIE_SECURE', True),
+)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
-socketio = SocketIO(app, async_mode='eventlet')
+socketio = SocketIO(app, async_mode='eventlet', manage_session=False)
+TOKEN_SPEICHER_DIR = os.environ.get(
+    'TOKEN_SPEICHER_DIR',
+    os.path.join(app.instance_path, 'oauth_tokens')
+)
+CREDENTIALS_DATEI = os.environ.get(
+    'GOOGLE_CREDENTIALS_FILE',
+    os.path.join(PROJEKT_DIR, 'credentials.json')
+)
+EINFÜGE_PAUSE_SEKUNDEN = umgebung_als_float('EINFUEGE_PAUSE_SEKUNDEN', 0.1)
+RATE_LIMIT_START_WARTEZEIT = umgebung_als_float('RATE_LIMIT_START_WARTEZEIT', 1.0)
+RATE_LIMIT_MAX_WARTEZEIT = umgebung_als_float('RATE_LIMIT_MAX_WARTEZEIT', 32.0)
+RATE_LIMIT_MAX_VERSUCHE = umgebung_als_int('RATE_LIMIT_MAX_VERSUCHE', 6)
 
-def emit_status(msg):
-    """Send a status message to the web UI and optionally print it."""
-    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+def emit_status(msg, sitzungs_id=None):
+    """Sendet eine Statusmeldung an die passende Web-Sitzung."""
+    timestamp = aktueller_zeitstempel()
     line = f"{timestamp} - {msg}"
-    socketio.emit('status', line)
+    ziel_sitzung = sitzungs_id
+    if ziel_sitzung is None and has_request_context():
+        ziel_sitzung = session.get('sitzungs_id')
+
+    if ziel_sitzung:
+        socketio.emit('status', line, to=ziel_sitzung)
+    else:
+        socketio.emit('status', line)
+
     important = any(x in msg for x in ('⚠️', '❌', '🎉', 'Server'))
     if VERBOSE_CONSOLE or important:
         print(line, flush=True)
+
+
+def ist_rate_limit_fehler(fehler):
+    """Erkennt Google-Quota- und Rate-Limit-Fehler."""
+    status = getattr(getattr(fehler, 'resp', None), 'status', None)
+    fehlertext = str(fehler).lower()
+    rate_limit_gründe = (
+        'ratelimitexceeded',
+        'rate limit',
+        'userratelimitexceeded',
+        'quotaexceeded',
+        'quota exceeded',
+    )
+    return status in (403, 429) and any(grund in fehlertext for grund in rate_limit_gründe)
+
+
+def warte_wegen_rate_limit(versuch, aktion):
+    """Wartet mit exponentiellem Backoff und etwas Jitter auf einen neuen Versuch."""
+    if versuch >= RATE_LIMIT_MAX_VERSUCHE:
+        return False
+
+    basis_wartezeit = min(
+        RATE_LIMIT_MAX_WARTEZEIT,
+        RATE_LIMIT_START_WARTEZEIT * (2 ** versuch)
+    )
+    jitter = random.uniform(0, min(1.0, basis_wartezeit * 0.25))
+    wartezeit = basis_wartezeit + jitter
+    emit_status(f"⏳ Google Rate Limit beim {aktion}. Neuer Versuch in {wartezeit:.1f} Sekunden...")
+    time.sleep(wartezeit)
+    return True
+
 
 def handle_sigint(sig, frame):
     """Gracefully stop the server when CTRL-C is pressed."""
@@ -50,6 +172,110 @@ def handle_sigint(sig, frame):
 signal.signal(signal.SIGINT, handle_sigint)
 
 flows = {}
+
+
+def aktuelle_sitzungs_id():
+    """Erzeugt oder liefert die harmlose Sitzungs-ID für Cookie und Socket-Raum."""
+    sitzungs_id = session.get('sitzungs_id')
+    if not sitzungs_id:
+        sitzungs_id = secrets.token_urlsafe(32)
+        session['sitzungs_id'] = sitzungs_id
+    return sitzungs_id
+
+
+def hole_csrf_token():
+    """Erzeugt oder liefert das CSRF-Token der aktuellen Sitzung."""
+    csrf_token = session.get('csrf_token')
+    if not csrf_token:
+        csrf_token = secrets.token_urlsafe(32)
+        session['csrf_token'] = csrf_token
+    return csrf_token
+
+
+def csrf_token_ist_gueltig():
+    """Prüft das CSRF-Token aus dem Sync-Request."""
+    erwartetes_token = session.get('csrf_token', '')
+    gesendetes_token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token', '')
+    return secrets.compare_digest(gesendetes_token, erwartetes_token)
+
+
+def sicherer_dateiname(wert):
+    """Reduziert einen Sitzungswert auf sichere Dateinamen-Zeichen."""
+    return ''.join(zeichen for zeichen in wert if zeichen.isalnum() or zeichen in ('-', '_'))
+
+
+def token_pfad():
+    sitzungs_id = sicherer_dateiname(aktuelle_sitzungs_id())
+    return os.path.join(TOKEN_SPEICHER_DIR, f"{sitzungs_id}.json")
+
+
+def zugangsdaten_als_json(creds):
+    """Serialisiert Google-Zugangsdaten versionsübergreifend für den Token-Speicher."""
+    if hasattr(creds, 'to_json'):
+        return creds.to_json()
+
+    zugangsdaten = {
+        'token': creds.token,
+        'refresh_token': creds.refresh_token,
+        'token_uri': creds.token_uri,
+        'client_id': creds.client_id,
+        'client_secret': creds.client_secret,
+        'scopes': creds.scopes,
+    }
+    return json.dumps(zugangsdaten)
+
+
+def speichere_zugangsdaten(creds):
+    """Speichert OAuth-Zugangsdaten serverseitig statt im Browser-Cookie."""
+    os.makedirs(TOKEN_SPEICHER_DIR, mode=0o700, exist_ok=True)
+    os.chmod(TOKEN_SPEICHER_DIR, 0o700)
+    pfad = token_pfad()
+    temporaerer_pfad = f"{pfad}.tmp"
+    with open(temporaerer_pfad, 'w', encoding='utf-8') as datei:
+        datei.write(zugangsdaten_als_json(creds))
+    os.chmod(temporaerer_pfad, 0o600)
+    os.replace(temporaerer_pfad, pfad)
+
+
+def lösche_zugangsdaten():
+    """Entfernt beschädigte oder abgelaufene serverseitige OAuth-Daten."""
+    try:
+        os.remove(token_pfad())
+    except FileNotFoundError:
+        pass
+
+
+def lade_zugangsdaten():
+    """Lädt OAuth-Zugangsdaten aus dem serverseitigen Token-Speicher."""
+    session.pop('creds', None)
+    pfad = token_pfad()
+    if not os.path.exists(pfad):
+        return None
+
+    try:
+        with open(pfad, 'r', encoding='utf-8') as datei:
+            daten = json.load(datei)
+        return Credentials.from_authorized_user_info(daten, SCOPES)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        emit_status(f"⚠️ Gespeicherte OAuth-Zugangsdaten konnten nicht gelesen werden: {exc}")
+        lösche_zugangsdaten()
+        return None
+
+
+@app.before_request
+def bereite_sitzung_vor():
+    """Stellt Sitzungs-ID und CSRF-Token bereit, ohne OAuth-Daten ins Cookie zu legen."""
+    aktuelle_sitzungs_id()
+    hole_csrf_token()
+    session.pop('creds', None)
+
+
+@socketio.on('connect')
+def websocket_verbinden():
+    """Verbindet den Browser mit seinem privaten Status-Raum."""
+    sitzungs_id = session.get('sitzungs_id')
+    if sitzungs_id:
+        join_room(sitzungs_id)
 
 
 def get_redirect_uri():
@@ -64,14 +290,20 @@ def get_redirect_uri():
 
 
 def get_services():
-    creds = None
-    creds_json = session.get('creds')
-    if creds_json:
-        creds = Credentials.from_authorized_user_info(json.loads(creds_json), SCOPES)
+    creds = lade_zugangsdaten()
+
+    if creds and not creds.valid and creds.refresh_token:
+        try:
+            creds.refresh(GoogleAuthRequest())
+            speichere_zugangsdaten(creds)
+        except Exception as exc:
+            emit_status(f"⚠️ OAuth-Zugangsdaten konnten nicht erneuert werden: {exc}")
+            lösche_zugangsdaten()
+            creds = None
 
     if not creds or not creds.valid:
         emit_status("Authentifiziere Benutzer über Google...")
-        flow = Flow.from_client_secrets_file('credentials.json', scopes=SCOPES)
+        flow = Flow.from_client_secrets_file(CREDENTIALS_DATEI, scopes=SCOPES)
         flow.redirect_uri = get_redirect_uri()
         auth_url, state = flow.authorization_url(prompt='consent', include_granted_scopes='true')
         flows[state] = flow
@@ -265,24 +497,24 @@ def create_events(calendar_service, calendar_id, events):
             'transparency': 'transparent'
         }
 
+        rate_limit_versuch = 0
         while True:
             try:
                 calendar_service.events().insert(calendarId=calendar_id, body=event).execute()
                 emit_status(f"✅ {label} am {date_str} für {name} eingetragen")
                 created_count += 1
-                time.sleep(0.5)
+                time.sleep(EINFÜGE_PAUSE_SEKUNDEN)
                 break
             except HttpError as e:
-                if e.resp.status == 403 and 'rateLimitExceeded' in str(e):
-                    emit_status('⏳ Warte wegen Google Rate Limit...')
-                    time.sleep(2)
-                else:
-                    raise
+                if ist_rate_limit_fehler(e) and warte_wegen_rate_limit(rate_limit_versuch, 'Einfügen'):
+                    rate_limit_versuch += 1
+                    continue
+                raise
     return created_count, skipped_count
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', csrf_token=hole_csrf_token())
 
 @app.route('/datenschutz')
 def privacy():
@@ -292,8 +524,12 @@ def privacy():
 def terms():
     return render_template('nutzungsbedingungen.html')
 
-@app.route('/sync')
+@app.route('/sync', methods=['POST'])
 def sync_events():
+    if not csrf_token_ist_gueltig():
+        emit_status("❌ Ungültiges CSRF-Token.")
+        return "CSRF-Fehler", 400
+
     people_service, calendar_service, auth_url = get_services()
     if auth_url:
         return jsonify({'auth_url': auth_url}), 401
@@ -353,11 +589,16 @@ def oauth2callback():
         return "OAuth-Fehler", 500
 
     creds = flow.credentials
-    session['creds'] = creds.to_json()
+    speichere_zugangsdaten(creds)
     flows.pop(state, None)
     session.pop('oauth_state', None)
     emit_status("✅ OAuth erfolgreich abgeschlossen.")
     return redirect(url_for('index', autostart=1))
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=8022, host="0.0.0.0")
+    socketio.run(
+        app,
+        debug=umgebung_ist_wahr('FLASK_DEBUG', False),
+        port=int(os.environ.get('PORT', '8022')),
+        host=os.environ.get('HOST', '0.0.0.0')
+    )
