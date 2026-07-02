@@ -41,6 +41,19 @@ die Anwendung automatisch exponentiellen Backoff.
 
 Bevor du die Anwendung startest, musst du in der Google Cloud Console sowohl die **People API** als auch die **Calendar API** für dein Projekt aktivieren. Andernfalls endet der Zugriff auf deine Kontakte mit einem 403-Fehler.
 
+Für den OAuth-Zustimmungsbildschirm werden nur diese Bereiche benötigt:
+
+```text
+https://www.googleapis.com/auth/contacts.readonly
+https://www.googleapis.com/auth/calendar.app.created
+https://www.googleapis.com/auth/calendar.calendarlist.readonly
+```
+
+Entferne dort alle anderen Bereiche wie `calendar`, `calendar.events`,
+`calendar.acls`, `contacts`, `contacts.other.readonly`, BigQuery,
+Cloud Platform oder Storage. Nach einer Änderung der Bereiche muss die
+Google-Autorisierung im Browser neu durchgeführt werden.
+
 Erstelle anschließend in der [Google Cloud Console](https://console.cloud.google.com/apis/credentials) einen OAuth2-Client vom Typ **Webanwendung** und lade die Datei `credentials.json` herunter. Diese Datei muss sich im selben Verzeichnis wie `app.py` befinden. Gib dem Client einen klaren Namen (z. B. „Geburtstagsimporter Web-App“) und hinterlege die autorisierten Redirect-URIs für deine Web-App. Die Einträge müssen **exakt** mit Schema, Host und Port übereinstimmen (inklusive `/oauth2callback`). Gehe dabei wie folgt vor:
 
 1. In der Google Cloud Console → **APIs & Dienste** → **Anmeldedaten** → OAuth‑Client (**Webanwendung**) öffnen.

@@ -22,7 +22,8 @@ import time
 
 SCOPES = [
     'https://www.googleapis.com/auth/contacts.readonly',
-    'https://www.googleapis.com/auth/calendar'
+    'https://www.googleapis.com/auth/calendar.app.created',
+    'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
 ]
 
 # Print all messages to console when True. When False only important
