@@ -159,7 +159,7 @@
                 oberstatusEl.textContent = 'Anmeldung';
                 syncButton.disabled = false;
             } else if (!resp.ok) {
-                logEl.textContent += "Synchronisation konnte nicht gestartet werden.\n";
+                logEl.textContent += "Synchronisation wurde mit einem Fehler beendet. Details stehen im Live-Protokoll.\n";
                 logEl.scrollTop = logEl.scrollHeight;
                 oberstatusEl.textContent = 'Fehler';
                 syncButton.disabled = false;

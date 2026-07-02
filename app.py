@@ -147,8 +147,22 @@ def ist_rate_limit_fehler(fehler):
     return status in (403, 429) and any(grund in fehlertext for grund in rate_limit_gründe)
 
 
-def warte_wegen_rate_limit(versuch, aktion):
+def google_fehler_status(fehler):
+    """Liefert den HTTP-Status eines Google-API-Fehlers."""
+    return getattr(getattr(fehler, 'resp', None), 'status', None)
+
+
+def ist_wiederholbarer_google_fehler(fehler):
+    """Erkennt kurzzeitige Google-API-Fehler, die einen neuen Versuch lohnen."""
+    status = google_fehler_status(fehler)
+    return status in (429, 500, 502, 503, 504) or ist_rate_limit_fehler(fehler)
+
+
+def warte_wegen_google_api_fehler(versuch, aktion, fehler):
     """Wartet mit exponentiellem Backoff und etwas Jitter auf einen neuen Versuch."""
+    if not ist_wiederholbarer_google_fehler(fehler):
+        return False
+
     if versuch >= RATE_LIMIT_MAX_VERSUCHE:
         return False
 
@@ -158,9 +172,24 @@ def warte_wegen_rate_limit(versuch, aktion):
     )
     jitter = random.uniform(0, min(1.0, basis_wartezeit * 0.25))
     wartezeit = basis_wartezeit + jitter
-    emit_status(f"⏳ Google Rate Limit beim {aktion}. Neuer Versuch in {wartezeit:.1f} Sekunden...")
+    status = google_fehler_status(fehler)
+    grund = 'Rate Limit' if ist_rate_limit_fehler(fehler) else f'HTTP {status}'
+    emit_status(f"⏳ Google API Fehler beim {aktion} ({grund}). Neuer Versuch in {wartezeit:.1f} Sekunden...")
     time.sleep(wartezeit)
     return True
+
+
+def führe_google_api_aus(anforderung, aktion):
+    """Führt eine Google-API-Anforderung mit Wiederholungen bei kurzzeitigen Fehlern aus."""
+    versuch = 0
+    while True:
+        try:
+            return anforderung.execute()
+        except HttpError as fehler:
+            if warte_wegen_google_api_fehler(versuch, aktion, fehler):
+                versuch += 1
+                continue
+            raise
 
 
 def handle_sigint(sig, frame):
@@ -316,15 +345,21 @@ def get_services():
 
 def get_or_create_calendar(service, name="Geburtstage"):
     emit_status(f"Suche nach Kalender '{name}'...")
-    calendars = service.calendarList().list().execute()
-    for cal in calendars['items']:
+    calendars = führe_google_api_aus(
+        service.calendarList().list(),
+        'Abrufen der Kalenderliste'
+    )
+    for cal in calendars.get('items', []):
         if cal['summary'].lower() == name.lower():
             emit_status("Kalender bereits vorhanden.")
             return cal['id']
 
     emit_status("Kalender nicht gefunden – wird erstellt.")
     new_cal = {'summary': name, 'timeZone': 'Europe/Berlin'}
-    created = service.calendars().insert(body=new_cal).execute()
+    created = führe_google_api_aus(
+        service.calendars().insert(body=new_cal),
+        'Erstellen des Kalenders'
+    )
     return created['id']
 
 def clear_calendar(service, calendar_id):
@@ -334,11 +369,14 @@ def clear_calendar(service, calendar_id):
     deleted_any = False
     while True:
         try:
-            events = service.events().list(
-                calendarId=calendar_id,
-                pageToken=page_token,
-                maxResults=2500,
-            ).execute()
+            events = führe_google_api_aus(
+                service.events().list(
+                    calendarId=calendar_id,
+                    pageToken=page_token,
+                    maxResults=2500,
+                ),
+                'Abrufen der Kalenderereignisse'
+            )
         except HttpError as e:
             emit_status(f"❌ Fehler beim Abrufen der Kalenderereignisse: {e}")
             raise
@@ -346,17 +384,16 @@ def clear_calendar(service, calendar_id):
         for ev in events.get('items', []):
             while True:
                 try:
-                    service.events().delete(calendarId=calendar_id, eventId=ev['id']).execute()
+                    führe_google_api_aus(
+                        service.events().delete(calendarId=calendar_id, eventId=ev['id']),
+                        f"Löschen des Ereignisses '{ev.get('summary', '')}'"
+                    )
                     deleted_any = True
                     time.sleep(0.1)
                     break
                 except HttpError as e:
-                    if e.resp.status == 403 and 'rateLimitExceeded' in str(e):
-                        emit_status('⏳ Warte wegen Google Rate Limit...')
-                        time.sleep(2)
-                    else:
-                        emit_status(f"❌ Fehler beim Löschen des Ereignisses '{ev.get('summary', '')}': {e}")
-                        break
+                    emit_status(f"❌ Fehler beim Löschen des Ereignisses '{ev.get('summary', '')}': {e}")
+                    break
 
         page_token = events.get('nextPageToken')
         if not page_token:
@@ -373,12 +410,15 @@ def get_all_events(people_service):
     events = []
     page_token = None
     while True:
-        results = people_service.people().connections().list(
-            resourceName='people/me',
-            personFields='names,birthdays,events',
-            pageSize=1000,
-            pageToken=page_token
-        ).execute()
+        results = führe_google_api_aus(
+            people_service.people().connections().list(
+                resourceName='people/me',
+                personFields='names,birthdays,events',
+                pageSize=1000,
+                pageToken=page_token
+            ),
+            'Abrufen der Kontakte'
+        )
 
         for person in results.get('connections', []):
             names = person.get('names', [])
@@ -445,13 +485,16 @@ def create_events(calendar_service, calendar_id, events):
     skipped_count = 0
     while True:
         try:
-            existing_events = calendar_service.events().list(
-                calendarId=calendar_id,
-                maxResults=2500,
-                singleEvents=True,
-                orderBy='startTime',
-                pageToken=page_token,
-            ).execute()
+            existing_events = führe_google_api_aus(
+                calendar_service.events().list(
+                    calendarId=calendar_id,
+                    maxResults=2500,
+                    singleEvents=True,
+                    orderBy='startTime',
+                    pageToken=page_token,
+                ),
+                'Prüfen vorhandener Kalenderereignisse'
+            )
         except HttpError as e:
             emit_status(f"❌ Fehler beim Abrufen der Kalenderereignisse: {e}")
             raise
@@ -497,19 +540,13 @@ def create_events(calendar_service, calendar_id, events):
             'transparency': 'transparent'
         }
 
-        rate_limit_versuch = 0
-        while True:
-            try:
-                calendar_service.events().insert(calendarId=calendar_id, body=event).execute()
-                emit_status(f"✅ {label} am {date_str} für {name} eingetragen")
-                created_count += 1
-                time.sleep(EINFÜGE_PAUSE_SEKUNDEN)
-                break
-            except HttpError as e:
-                if ist_rate_limit_fehler(e) and warte_wegen_rate_limit(rate_limit_versuch, 'Einfügen'):
-                    rate_limit_versuch += 1
-                    continue
-                raise
+        führe_google_api_aus(
+            calendar_service.events().insert(calendarId=calendar_id, body=event),
+            'Einfügen'
+        )
+        emit_status(f"✅ {label} am {date_str} für {name} eingetragen")
+        created_count += 1
+        time.sleep(EINFÜGE_PAUSE_SEKUNDEN)
     return created_count, skipped_count
 
 @app.route('/')
@@ -535,21 +572,22 @@ def sync_events():
         return jsonify({'auth_url': auth_url}), 401
     try:
         all_events = get_all_events(people_service)
-    except HttpError as e:
-        if e.resp.status == 403 and "SERVICE_DISABLED" in str(e):
+        emit_status("✅ Kontakte geladen – bereite Kalender vor...")
+        calendar_id = get_or_create_calendar(calendar_service)
+        clear_calendar(calendar_service, calendar_id)
+        write_events_file(all_events)
+        created_count, skipped_count = create_events(calendar_service, calendar_id, all_events)
+    except HttpError as fehler:
+        status = google_fehler_status(fehler)
+        if status == 403 and "SERVICE_DISABLED" in str(fehler):
             emit_status("❌ People API oder Calendar API ist nicht aktiviert. Bitte in der Google Cloud Console einschalten und erneut versuchen.")
         else:
-            emit_status(f"❌ Fehler beim Abrufen der Kontakte: {e}")
+            emit_status(f"❌ Google API Fehler beim Synchronisieren (HTTP {status}): {fehler}")
         return "Error", 500
-    emit_status("✅ Kontakte geladen – bereite Kalender vor...")
-    calendar_id = get_or_create_calendar(calendar_service)
-    clear_calendar(calendar_service, calendar_id)
-    write_events_file(all_events)
-    try:
-        created_count, skipped_count = create_events(calendar_service, calendar_id, all_events)
-    except HttpError as e:
-        emit_status(f"❌ Fehler beim Erstellen der Events: {e}")
+    except Exception as fehler:
+        emit_status(f"❌ Unerwarteter Fehler beim Synchronisieren: {fehler}")
         return "Error", 500
+
     if skipped_count:
         emit_status(
             f"🎉 Synchronisation abgeschlossen. {created_count} Einträge in den Kalender geschrieben. "
