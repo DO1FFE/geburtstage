@@ -25,6 +25,7 @@ SCOPES = [
     'https://www.googleapis.com/auth/calendar.app.created',
     'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
 ]
+ERLAUBTE_OAUTH_BEREICHE = set(SCOPES)
 
 # Print all messages to console when True. When False only important
 # messages are shown.
@@ -255,6 +256,17 @@ def zugangsdaten_als_json(creds):
     return json.dumps(zugangsdaten)
 
 
+def normalisiere_oauth_bereiche(wert):
+    """Liest OAuth-Bereiche aus gespeicherten Token-Daten als Menge."""
+    if not wert:
+        return set()
+    if isinstance(wert, str):
+        return set(wert.split())
+    if isinstance(wert, (list, tuple, set)):
+        return set(wert)
+    return set()
+
+
 def speichere_zugangsdaten(creds):
     """Speichert OAuth-Zugangsdaten serverseitig statt im Browser-Cookie."""
     os.makedirs(TOKEN_SPEICHER_DIR, mode=0o700, exist_ok=True)
@@ -285,6 +297,16 @@ def lade_zugangsdaten():
     try:
         with open(pfad, 'r', encoding='utf-8') as datei:
             daten = json.load(datei)
+        gespeicherte_bereiche = normalisiere_oauth_bereiche(
+            daten.get('scopes') or daten.get('scope')
+        )
+        if gespeicherte_bereiche and gespeicherte_bereiche != ERLAUBTE_OAUTH_BEREICHE:
+            emit_status(
+                "⚠️ Gespeicherte OAuth-Zugangsdaten passen nicht zu den aktuellen "
+                "Berechtigungen. Bitte erneut über Google anmelden."
+            )
+            lösche_zugangsdaten()
+            return None
         return Credentials.from_authorized_user_info(daten, SCOPES)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         emit_status(f"⚠️ Gespeicherte OAuth-Zugangsdaten konnten nicht gelesen werden: {exc}")
@@ -335,7 +357,7 @@ def get_services():
         emit_status("Authentifiziere Benutzer über Google...")
         flow = Flow.from_client_secrets_file(CREDENTIALS_DATEI, scopes=SCOPES)
         flow.redirect_uri = get_redirect_uri()
-        auth_url, state = flow.authorization_url(prompt='consent', include_granted_scopes='true')
+        auth_url, state = flow.authorization_url(prompt='consent')
         flows[state] = flow
         session['oauth_state'] = state
         return None, None, auth_url
