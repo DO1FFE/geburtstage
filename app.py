@@ -8,6 +8,7 @@ import random
 import signal
 import secrets
 import sys
+from contextvars import ContextVar
 from zoneinfo import ZoneInfo
 
 from flask import Flask, render_template, jsonify, request, session, url_for, redirect, has_request_context
@@ -115,13 +116,16 @@ EINFÜGE_PAUSE_SEKUNDEN = umgebung_als_float('EINFUEGE_PAUSE_SEKUNDEN', 0.1)
 RATE_LIMIT_START_WARTEZEIT = umgebung_als_float('RATE_LIMIT_START_WARTEZEIT', 1.0)
 RATE_LIMIT_MAX_WARTEZEIT = umgebung_als_float('RATE_LIMIT_MAX_WARTEZEIT', 32.0)
 RATE_LIMIT_MAX_VERSUCHE = umgebung_als_int('RATE_LIMIT_MAX_VERSUCHE', 6)
+AKTIVE_STATUS_SITZUNG = ContextVar('aktive_status_sitzung', default=None)
+laufende_synchronisationen = set()
+synchronisations_sperre = eventlet.semaphore.Semaphore()
 
 
 def emit_status(msg, sitzungs_id=None):
     """Sendet eine Statusmeldung an die passende Web-Sitzung."""
     timestamp = aktueller_zeitstempel()
     line = f"{timestamp} - {msg}"
-    ziel_sitzung = sitzungs_id
+    ziel_sitzung = sitzungs_id or AKTIVE_STATUS_SITZUNG.get()
     if ziel_sitzung is None and has_request_context():
         ziel_sitzung = session.get('sitzungs_id')
 
@@ -228,6 +232,21 @@ def csrf_token_ist_gueltig():
     erwartetes_token = session.get('csrf_token', '')
     gesendetes_token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token', '')
     return secrets.compare_digest(gesendetes_token, erwartetes_token)
+
+
+def starte_synchronisation_für_sitzung(sitzungs_id):
+    """Merkt, dass für diese Browser-Sitzung bereits ein Lauf aktiv ist."""
+    with synchronisations_sperre:
+        if sitzungs_id in laufende_synchronisationen:
+            return False
+        laufende_synchronisationen.add(sitzungs_id)
+        return True
+
+
+def beende_synchronisation_für_sitzung(sitzungs_id):
+    """Gibt den Synchronisationsstart für diese Browser-Sitzung wieder frei."""
+    with synchronisations_sperre:
+        laufende_synchronisationen.discard(sitzungs_id)
 
 
 def sicherer_dateiname(wert):
@@ -584,15 +603,8 @@ def privacy():
 def terms():
     return render_template('nutzungsbedingungen.html')
 
-@app.route('/sync', methods=['POST'])
-def sync_events():
-    if not csrf_token_ist_gueltig():
-        emit_status("❌ Ungültiges CSRF-Token.")
-        return "CSRF-Fehler", 400
-
-    people_service, calendar_service, auth_url = get_services()
-    if auth_url:
-        return jsonify({'auth_url': auth_url}), 401
+def sync_events_ausführen(people_service, calendar_service):
+    """Führt den eigentlichen Import aus und meldet den Fortschritt per WebSocket."""
     try:
         all_events = get_all_events(people_service)
         emit_status("✅ Kontakte geladen – bereite Kalender vor...")
@@ -618,7 +630,33 @@ def sync_events():
         )
     else:
         emit_status(f"🎉 Synchronisation abgeschlossen. {created_count} Einträge in den Kalender geschrieben.")
-    return "OK"
+
+
+@app.route('/sync', methods=['POST'])
+def sync_events():
+    if not csrf_token_ist_gueltig():
+        emit_status("❌ Ungültiges CSRF-Token.")
+        return "CSRF-Fehler", 400
+
+    people_service, calendar_service, auth_url = get_services()
+    if auth_url:
+        return jsonify({'auth_url': auth_url}), 401
+
+    sitzungs_id = aktuelle_sitzungs_id()
+    if not starte_synchronisation_für_sitzung(sitzungs_id):
+        return jsonify({'status': 'läuft_bereits'}), 409
+
+    def synchronisation_im_hintergrund():
+        token = AKTIVE_STATUS_SITZUNG.set(sitzungs_id)
+        try:
+            sync_events_ausführen(people_service, calendar_service)
+        finally:
+            AKTIVE_STATUS_SITZUNG.reset(token)
+            beende_synchronisation_für_sitzung(sitzungs_id)
+
+    socketio.start_background_task(synchronisation_im_hintergrund)
+    emit_status("Synchronisation im Hintergrund gestartet.", sitzungs_id=sitzungs_id)
+    return jsonify({'status': 'gestartet'}), 202
 
 @app.route('/oauth2callback')
 def oauth2callback():

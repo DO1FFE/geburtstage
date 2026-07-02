@@ -145,27 +145,39 @@
             oberstatusEl.textContent = 'Startet';
             authEl.replaceChildren();
 
-            const resp = await fetch('/sync', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'X-CSRF-Token': csrfToken
-                }
-            });
+            let resp;
+            try {
+                resp = await fetch('/sync', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-CSRF-Token': csrfToken
+                    }
+                });
+            } catch (error) {
+                logEl.textContent += "Synchronisation konnte nicht gestartet werden. Bitte erneut versuchen.\n";
+                logEl.scrollTop = logEl.scrollHeight;
+                oberstatusEl.textContent = 'Fehler';
+                syncButton.disabled = false;
+                return;
+            }
 
             if (resp.status === 401) {
                 const data = await resp.json();
                 zeigeAuthLink(data.auth_url);
                 oberstatusEl.textContent = 'Anmeldung';
                 syncButton.disabled = false;
+            } else if (resp.status === 409) {
+                logEl.textContent += "Synchronisation läuft bereits.\n";
+                logEl.scrollTop = logEl.scrollHeight;
+                oberstatusEl.textContent = 'Läuft';
             } else if (!resp.ok) {
                 logEl.textContent += "Synchronisation wurde mit einem Fehler beendet. Details stehen im Live-Protokoll.\n";
                 logEl.scrollTop = logEl.scrollHeight;
                 oberstatusEl.textContent = 'Fehler';
                 syncButton.disabled = false;
             } else {
-                oberstatusEl.textContent = 'Abgeschlossen';
-                syncButton.disabled = false;
+                oberstatusEl.textContent = 'Läuft';
             }
         }
 
