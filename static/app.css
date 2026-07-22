@@ -51,7 +51,8 @@ a {
 }
 
 button:focus-visible,
-a:focus-visible {
+a:focus-visible,
+input:focus-visible {
     outline: 3px solid rgba(15, 118, 110, 0.28);
     outline-offset: 3px;
 }
@@ -257,6 +258,45 @@ h1 {
     transform: none;
 }
 
+.sekundärknopf,
+.trennknopf {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 16px;
+    border: 1px solid var(--linie);
+    border-radius: 8px;
+    background: var(--fläche);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.94rem;
+    font-weight: 700;
+}
+
+.sekundärknopf:hover {
+    border-color: var(--akzent);
+    background: var(--akzent-weich);
+    color: var(--akzent-dunkel);
+}
+
+.trennknopf {
+    width: 100%;
+    color: var(--fehler);
+}
+
+.trennknopf:hover {
+    border-color: rgba(180, 35, 24, 0.35);
+    background: #fff3f2;
+}
+
+.sekundärknopf:disabled,
+.trennknopf:disabled {
+    cursor: wait;
+    opacity: 0.62;
+}
+
 .knopf-symbol {
     font-size: 1.15rem;
     line-height: 1;
@@ -291,6 +331,12 @@ h1 {
     border-color: #deb85d;
     background: #ffffff;
     color: #66480a;
+}
+
+.verbindungsaktion {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--linie);
 }
 
 .protokollfeld {
@@ -348,6 +394,138 @@ h1 {
     color: #aab6c2;
 }
 
+.vorschaufeld {
+    margin-top: 28px;
+    padding: 26px 0;
+    border-top: 1px solid var(--linie);
+    border-bottom: 1px solid var(--linie);
+}
+
+.vorschau-kopf {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.vorschau-kopf h2 {
+    margin: 0;
+    font-size: 1.3rem;
+    line-height: 1.25;
+}
+
+.vorschau-kopf p:not(.eyebrow) {
+    margin: 6px 0 0;
+    color: var(--text-leise);
+}
+
+.bereichskennung {
+    flex: 0 0 auto;
+    padding: 5px 8px;
+    border: 1px solid rgba(15, 118, 110, 0.28);
+    border-radius: 4px;
+    background: var(--akzent-weich);
+    color: var(--akzent-dunkel);
+    font-family: "DejaVu Sans Mono", Consolas, monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.vorschau-form {
+    width: min(720px, 100%);
+    margin-top: 20px;
+}
+
+.vorschau-form label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-leise);
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.vorschau-suche {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+}
+
+.vorschau-suche input {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid var(--linie);
+    border-radius: 8px;
+    background: var(--fläche);
+    color: var(--text);
+    font: inherit;
+}
+
+.vorschau-suche input:hover,
+.vorschau-suche input:focus {
+    border-color: rgba(15, 118, 110, 0.55);
+}
+
+.vorschau-status {
+    margin: 18px 0 10px;
+    color: var(--text-leise);
+    font-size: 0.92rem;
+}
+
+.vorschau-liste {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.vorschau-eintrag,
+.vorschau-leer {
+    min-width: 0;
+    min-height: 66px;
+    padding: 12px 14px;
+    border: 1px solid var(--linie);
+    border-radius: 6px;
+    background: var(--fläche);
+}
+
+.vorschau-eintrag {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+}
+
+.vorschau-eintrag div {
+    min-width: 0;
+}
+
+.vorschau-eintrag strong,
+.vorschau-eintrag span {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
+.vorschau-eintrag span {
+    margin-top: 2px;
+    color: var(--text-leise);
+    font-size: 0.86rem;
+}
+
+.vorschau-eintrag time {
+    color: var(--akzent-dunkel);
+    font-size: 0.9rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.vorschau-leer {
+    grid-column: 1 / -1;
+    color: var(--text-leise);
+}
+
 .textfläche {
     width: min(900px, 100%);
     margin: 0 auto;
@@ -371,6 +549,11 @@ h1 {
 
 .textfläche ul {
     padding-left: 22px;
+}
+
+.textfläche code {
+    overflow-wrap: anywhere;
+    color: var(--text);
 }
 
 .site-footer {
@@ -423,6 +606,19 @@ h1 {
 
     .arbeitsbereich {
         grid-template-columns: 1fr;
+    }
+
+    .vorschau-kopf {
+        flex-direction: column;
+    }
+
+    .vorschau-suche,
+    .vorschau-liste {
+        grid-template-columns: 1fr;
+    }
+
+    .sekundärknopf {
+        width: 100%;
     }
 
     .bedienfeld,

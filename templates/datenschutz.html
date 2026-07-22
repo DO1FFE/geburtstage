@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Datenschutzerklärung</title>
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9376188585752918"
-            crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=20260531-0114">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=20260722-01">
 </head>
 <body>
     <div class="seitenrahmen">
@@ -28,8 +26,11 @@
             <h1>Datenschutzerklärung</h1>
             <p>
                 Diese Datenschutzerklärung informiert dich darüber, wie die Anwendung
-                „Google Geburtstagsimport“ personenbezogene Daten verarbeitet.
+                „Google Geburtstagsimport“ unter
+                <a href="https://calendar.do1ffe.de">calendar.do1ffe.de</a>
+                personenbezogene Daten und Google-Nutzerdaten verarbeitet.
             </p>
+            <p><strong>Stand: 22. Juli 2026</strong></p>
 
             <h2>1. Verantwortlicher</h2>
             <p>
@@ -37,61 +38,119 @@
                 E-Mail: <a href="mailto:do1ffe@darc.de">do1ffe@darc.de</a>
             </p>
 
-            <h2>2. Zweck der Verarbeitung</h2>
+            <h2>2. Abgerufene Daten und OAuth-Bereiche</h2>
+            <p>Die Anwendung fordert ausschließlich folgende Google-OAuth-Bereiche an:</p>
+            <ul>
+                <li>
+                    <code>contacts.readonly</code>: Namen, Geburtstage und weitere datierte
+                    Ereignisse aus deinen Google Kontakten lesen.
+                </li>
+                <li>
+                    <code>calendar.app.created</code>: den von dieser Anwendung erstellten
+                    Kalender „Geburtstage“ und dessen Termine verwalten.
+                </li>
+                <li>
+                    <code>calendar.calendarlist.readonly</code>: prüfen, ob der Zielkalender
+                    in deiner Kalenderliste vorhanden ist.
+                </li>
+            </ul>
             <p>
-                Die Anwendung synchronisiert Geburtstage und andere datierte Ereignisse
-                aus deinen Google Kontakten in einen separaten Google Kalender
-                („Geburtstage“).
+                Zusätzlich verarbeitet die Anwendung OAuth-Zugriffs- und Aktualisierungstokens,
+                eine zufällige Sitzungskennung, ein CSRF-Schutztoken, technische Statusmeldungen
+                und einen optional eingegebenen Suchbegriff für die Kontaktvorschau.
             </p>
 
-            <h2>3. Verarbeitete Daten</h2>
+            <h2>3. Zweck und Verwendung</h2>
+            <p>
+                Die Kontaktdaten werden ausschließlich verwendet, um dir eine begrenzte Vorschau
+                datierter Kontaktfelder anzuzeigen und nach deiner ausdrücklichen Aktion jährliche
+                Ganztagstermine im separaten Google Kalender „Geburtstage“ zu erstellen. Die
+                Kalenderliste wird nur gelesen, um diesen Kalender zu finden oder bei Bedarf neu
+                anzulegen. Eine Nutzung für Werbung, Profilbildung, Bonitätsprüfung oder das
+                Trainieren allgemeiner KI- oder Machine-Learning-Modelle findet nicht statt.
+            </p>
+
+            <h2>4. Weitergabe, Übertragung und Offenlegung</h2>
+            <p>
+                Die Anwendung verkauft, vermietet oder übermittelt Google-Nutzerdaten nicht an
+                Werbenetzwerke, Datenhändler oder sonstige Dritte. Sie legt diese Daten auch nicht
+                gegenüber Dritten offen. Der einzige externe Datenaustausch erfolgt unmittelbar mit
+                den von dir autorisierten Google People- und Google Calendar-APIs: Kontaktdaten werden
+                von Google abgerufen und die daraus erzeugten Termine in dein Google-Konto
+                zurückgeschrieben. Die Anwendung enthält keine Werbung und kein Google AdSense.
+            </p>
+
+            <h2>5. Schutzmechanismen für sensible Daten</h2>
+            <p>Zum Schutz deiner Google-Nutzerdaten setzt die Anwendung folgende Maßnahmen ein:</p>
             <ul>
-                <li>Kontaktnamen aus Google Kontakten</li>
-                <li>Geburtstagsdaten und weitere datierte Ereignisse</li>
-                <li>OAuth-Autorisierungsdaten im Rahmen der Google-Authentifizierung</li>
-                <li>Technische Statusmeldungen im Browser</li>
-                <li>Technische Daten und Cookies im Rahmen eingebundener Google-Werbedienste</li>
+                <li>verschlüsselte Übertragung über HTTPS/TLS,</li>
+                <li>serverseitige Speicherung der OAuth-Tokens; Tokens gelangen nicht in den Browser-Cookie,</li>
+                <li>Dateirechte 0700 für das Token-Verzeichnis und 0600 für einzelne Token-Dateien,</li>
+                <li>Cookies mit <code>Secure</code>, <code>HttpOnly</code> und <code>SameSite=Lax</code>,</li>
+                <li>CSRF-Schutz für Vorschau, Synchronisierung und Löschung,</li>
+                <li>private WebSocket-Räume je Browsersitzung und restriktive Browser-Sicherheitskopfzeilen,</li>
+                <li>Datenminimierung durch drei zweckgebundene OAuth-Bereiche und eine Vorschau ohne Jahresangabe,</li>
+                <li>keine Ausgabe von Kontaktnamen oder Geburtstagen in dauerhaften Serverprotokollen.</li>
             </ul>
 
-            <h2>4. Datenquellen</h2>
-            <p>
-                Die Daten stammen aus den von dir autorisierten Google-Diensten
-                (People API und Calendar API).
-            </p>
+            <h2>6. Aufbewahrung und Löschung</h2>
+            <ul>
+                <li>
+                    Namen und datierte Kontaktfelder werden nur während einer Vorschau oder
+                    Synchronisierung im Arbeitsspeicher des Servers gehalten und anschließend
+                    verworfen. Es gibt dafür keine Datenbank und keine lokale Exportdatei.
+                </li>
+                <li>
+                    Die Kontaktvorschau bleibt nur im geöffneten Browser sichtbar. Ein optionaler
+                    Suchbegriff liegt vorübergehend im Sitzungsspeicher des Browsers und wird nach
+                    erfolgreicher Vorschau oder spätestens beim Schließen des Tabs entfernt.
+                </li>
+                <li>
+                    OAuth-Tokens werden höchstens 30 Tage seit ihrer letzten Nutzung aufbewahrt.
+                    Eine automatische Bereinigung läuft alle sechs Stunden. Ungültige Tokens werden
+                    bei Erkennung sofort gelöscht.
+                </li>
+                <li>
+                    Über „Google-Verbindung trennen“ wird der Token bei Google widerrufen und die
+                    lokale Token-Datei sofort gelöscht. Der Zugriff kann außerdem unter
+                    <a href="https://myaccount.google.com/permissions">Google-Kontoberechtigungen</a>
+                    entzogen werden.
+                </li>
+                <li>
+                    Die erstellten Termine liegen ausschließlich in deinem Google-Konto. Sie bleiben
+                    dort bis zur nächsten Synchronisierung oder bis du Termine beziehungsweise den
+                    Kalender „Geburtstage“ in Google Calendar löschst.
+                </li>
+                <li>
+                    Sitzungskennung und CSRF-Token liegen nur im Sitzungscookie und verfallen mit der
+                    Browsersitzung. Statusmeldungen werden serverseitig nicht dauerhaft gespeichert.
+                </li>
+            </ul>
 
-            <h2>5. Rechtsgrundlage</h2>
+            <h2>7. Rechtsgrundlage und Widerruf</h2>
             <p>
                 Die Verarbeitung erfolgt auf Grundlage deiner Einwilligung gemäß Art. 6 Abs. 1 lit. a DSGVO,
-                die du durch die Google-Autorisierung erteilst.
+                die du durch die Google-Autorisierung erteilst. Du kannst diese Einwilligung jederzeit
+                mit Wirkung für die Zukunft widerrufen, indem du die Google-Verbindung in der Anwendung
+                trennst oder den Zugriff in deinem Google-Konto entfernst.
             </p>
 
-            <h2>6. Speicherung und Aufbewahrung</h2>
+            <h2>8. Google API Services User Data Policy</h2>
             <p>
-                OAuth-Zugriffsdaten werden serverseitig für die jeweilige Browsersitzung gespeichert.
-                Im Browser-Cookie liegen nur eine Sitzungskennung und ein CSRF-Token. Zusätzlich wird
-                bei jeder Synchronisierung eine lokale Datei „Geburtstage.txt“ erstellt, die die
-                gefundenen Ereignisse nach Datum sortiert enthält.
-            </p>
-
-            <h2>7. Empfänger</h2>
-            <p>
-                Für die Synchronisierung werden Daten an Google übertragen. Zusätzlich ist Google AdSense
-                eingebunden; dabei können durch Google technische Daten und Cookies verarbeitet werden.
-            </p>
-
-            <h2>8. Google AdSense</h2>
-            <p>
-                Die Anwendung bindet Google AdSense ein. Dabei können durch Google Cookies
-                gesetzt und technische Informationen verarbeitet werden, um Werbung bereitzustellen
-                und Missbrauch zu verhindern. Für diese Verarbeitung gelten ergänzend die
-                Datenschutzinformationen von Google.
+                Die Nutzung und Übertragung von Informationen aus Google-APIs durch diese Anwendung
+                entspricht der
+                <a href="https://developers.google.com/terms/api-services-user-data-policy">
+                    Google API Services User Data Policy
+                </a>, einschließlich der Anforderungen zur eingeschränkten Nutzung
+                („Limited Use“).
             </p>
 
             <h2>9. Deine Rechte</h2>
             <p>
                 Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung,
                 Datenübertragbarkeit sowie Widerruf deiner Einwilligung. Wende dich dazu an den
-                Verantwortlichen.
+                Verantwortlichen. Du hast außerdem das Recht, dich bei einer zuständigen
+                Datenschutzaufsichtsbehörde zu beschweren.
             </p>
 
             <h2>10. Änderungen</h2>

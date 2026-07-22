@@ -9,10 +9,13 @@ Ein Flask-Webinterface, um Geburtstage und andere datierte Ereignisse aus deinen
 - Fügt nur **neue** Ereignisse ein (Vermeidung von Duplikaten)
 - Leert den Kalender vor jeder Synchronisierung
 - Webinterface mit Live-Statusanzeige (via Socket.IO)
-- Log erscheint in Echtzeit direkt im Browser
-- Beim Hinzufügen steht im Log genau, welches Ereignis an welchem Datum für welche Person eingetragen wurde
+- Aggregiertes Protokoll erscheint in Echtzeit direkt im Browser, ohne Kontaktdaten in Serverprotokolle zu schreiben
+- Datensparsame Kontaktvorschau mit optionalem Filter und ohne Anzeige des Geburtsjahres
 - Lokale OAuth2-Autorisierung via `credentials.json`
 - Jede Browsersitzung verwendet eigene OAuth-Daten (keine gemeinsame Token-Datei)
+- OAuth-Tokens werden nach 30 Tagen Inaktivität automatisch gelöscht
+- Google-Zugriff und lokale OAuth-Daten können direkt in der Web-App widerrufen werden
+- Kontakt- und Ereignisdaten werden nur im Arbeitsspeicher verarbeitet, nicht lokal exportiert
 
 ## 🚀 Installation
 
@@ -35,7 +38,9 @@ Pflicht. Die Anwendung lädt außerdem eine lokale, nicht versionierte Datei
 Für lokale Tests ohne HTTPS kann `FLASK_SESSION_COOKIE_SECURE=0` gesetzt werden.
 Die Einfügegeschwindigkeit kann über `EINFUEGE_PAUSE_SEKUNDEN` angepasst werden;
 Standard sind `0.1` Sekunden pro Kalendereintrag. Bei Google-Rate-Limits nutzt
-die Anwendung automatisch exponentiellen Backoff.
+die Anwendung automatisch exponentiellen Backoff. Die Aufbewahrungsfrist für
+OAuth-Tokens kann mit `OAUTH_TOKEN_AUFBEWAHRUNG_TAGE` angepasst werden; der
+datenschutzfreundliche Standardwert beträgt 30 Tage seit der letzten Nutzung.
 
 ### Google API Einrichtung
 
@@ -73,8 +78,21 @@ Beim ersten Start wirst du auf der Webseite nach der Google-Autorisierung
 gefragt. Klicke auf den angezeigten Link, erteile den Zugriff und kehre danach
 automatisch zur Web-App zurück.
 
-Klicke anschließend im Browser auf **Jetzt synchronisieren**. Alle Statusmeldungen
-– inklusive der erfolgreich übertragenen Ereignisse – erscheinen live im Bereich
-"Log" auf der Webseite. Bei jeder Synchronisierung wird außerdem automatisch eine
-Datei `Geburtstage.txt` erzeugt, die alle gefundenen Ereignisse nach Datum sortiert enthält.
-Diese Datei enthält personenbezogene Daten und wird deshalb nicht versioniert.
+Über **Vorschau laden** kannst du vorab prüfen, welche datierten Kontaktfelder die
+People API mit `contacts.readonly` liefert. Die Vorschau zeigt höchstens acht Treffer
+und blendet vorhandene Jahresangaben aus. Klicke anschließend im Browser auf
+**Jetzt synchronisieren**. Aggregierte Statusmeldungen erscheinen live im Bereich
+„Live-Protokoll“. Namen, Geburtstage und andere datierte Kontaktfelder werden nur
+für den laufenden Vorgang im Arbeitsspeicher gehalten.
+
+Mit **Google-Verbindung trennen** wird der verwendete OAuth-Token bei Google
+widerrufen und die serverseitige Token-Datei unmittelbar gelöscht. Die vollständige
+Beschreibung von Datenzugriff, Weitergabe, Schutz, Aufbewahrung und Löschung steht
+unter [calendar.do1ffe.de/datenschutz](https://calendar.do1ffe.de/datenschutz).
+
+## OAuth-Verifizierungsdemo
+
+Die überarbeitete Demonstration für die Google-Prüfung ist öffentlich unter
+[oauth-verification-demo-2026-v2.mp4](https://calendar.do1ffe.de/static/oauth-verification-demo-2026-v2.mp4)
+abrufbar. Sie zeigt den OAuth-Ablauf, die sichtbare People-API-Kontaktvorschau für
+`contacts.readonly`, die beiden Calendar-Bereiche und die Datenschutzmaßnahmen.

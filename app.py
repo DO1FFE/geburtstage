@@ -8,6 +8,10 @@ import random
 import signal
 import secrets
 import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from contextvars import ContextVar
 from zoneinfo import ZoneInfo
 
@@ -19,7 +23,6 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2.credentials import Credentials
 from werkzeug.middleware.proxy_fix import ProxyFix
-import time
 
 SCOPES = [
     'https://www.googleapis.com/auth/contacts.readonly',
@@ -27,6 +30,10 @@ SCOPES = [
     'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
 ]
 ERLAUBTE_OAUTH_BEREICHE = set(SCOPES)
+DEUTSCHE_MONATE = (
+    'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+)
 
 # Print all messages to console when True. When False only important
 # messages are shown.
@@ -116,6 +123,12 @@ EINFÜGE_PAUSE_SEKUNDEN = umgebung_als_float('EINFUEGE_PAUSE_SEKUNDEN', 0.1)
 RATE_LIMIT_START_WARTEZEIT = umgebung_als_float('RATE_LIMIT_START_WARTEZEIT', 1.0)
 RATE_LIMIT_MAX_WARTEZEIT = umgebung_als_float('RATE_LIMIT_MAX_WARTEZEIT', 32.0)
 RATE_LIMIT_MAX_VERSUCHE = umgebung_als_int('RATE_LIMIT_MAX_VERSUCHE', 6)
+OAUTH_TOKEN_AUFBEWAHRUNG_TAGE = max(
+    1,
+    umgebung_als_int('OAUTH_TOKEN_AUFBEWAHRUNG_TAGE', 30)
+)
+TOKEN_BEREINIGUNGSINTERVALL_SEKUNDEN = 6 * 60 * 60
+VORSCHAU_MAX_EINTRÄGE = 8
 AKTIVE_STATUS_SITZUNG = ContextVar('aktive_status_sitzung', default=None)
 laufende_synchronisationen = set()
 synchronisations_sperre = eventlet.semaphore.Semaphore()
@@ -199,7 +212,7 @@ def führe_google_api_aus(anforderung, aktion):
 
 
 def handle_sigint(sig, frame):
-    """Gracefully stop the server when CTRL-C is pressed."""
+    """Beendet den Server geordnet, wenn Strg+C gedrückt wird."""
     emit_status("Server wird beendet...")
     socketio.stop()
     sys.exit(0)
@@ -302,8 +315,40 @@ def lösche_zugangsdaten():
     """Entfernt beschädigte oder abgelaufene serverseitige OAuth-Daten."""
     try:
         os.remove(token_pfad())
+        return True
     except FileNotFoundError:
-        pass
+        return False
+
+
+def bereinige_token_speicher():
+    """Löscht OAuth-Dateien nach der festgelegten Inaktivitätsfrist."""
+    if not os.path.isdir(TOKEN_SPEICHER_DIR):
+        return 0
+
+    grenzwert = time.time() - (OAUTH_TOKEN_AUFBEWAHRUNG_TAGE * 24 * 60 * 60)
+    gelöscht = 0
+    try:
+        einträge = list(os.scandir(TOKEN_SPEICHER_DIR))
+    except OSError:
+        return 0
+
+    for eintrag in einträge:
+        if not eintrag.name.endswith('.json') or not eintrag.is_file(follow_symlinks=False):
+            continue
+        try:
+            if eintrag.stat(follow_symlinks=False).st_mtime < grenzwert:
+                os.remove(eintrag.path)
+                gelöscht += 1
+        except (FileNotFoundError, OSError):
+            continue
+    return gelöscht
+
+
+def token_bereinigung_im_hintergrund():
+    """Bereinigt den Token-Speicher regelmäßig während des Serverbetriebs."""
+    while True:
+        bereinige_token_speicher()
+        eventlet.sleep(TOKEN_BEREINIGUNGSINTERVALL_SEKUNDEN)
 
 
 def lade_zugangsdaten():
@@ -326,7 +371,9 @@ def lade_zugangsdaten():
             )
             lösche_zugangsdaten()
             return None
-        return Credentials.from_authorized_user_info(daten, SCOPES)
+        zugangsdaten = Credentials.from_authorized_user_info(daten, SCOPES)
+        os.utime(pfad, None)
+        return zugangsdaten
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         emit_status(f"⚠️ Gespeicherte OAuth-Zugangsdaten konnten nicht gelesen werden: {exc}")
         lösche_zugangsdaten()
@@ -336,6 +383,7 @@ def lade_zugangsdaten():
 @app.before_request
 def bereite_sitzung_vor():
     """Stellt Sitzungs-ID und CSRF-Token bereit, ohne OAuth-Daten ins Cookie zu legen."""
+    bereinige_token_speicher()
     aktuelle_sitzungs_id()
     hole_csrf_token()
     session.pop('creds', None)
@@ -376,7 +424,11 @@ def get_services():
         emit_status("Authentifiziere Benutzer über Google...")
         flow = Flow.from_client_secrets_file(CREDENTIALS_DATEI, scopes=SCOPES)
         flow.redirect_uri = get_redirect_uri()
-        auth_url, state = flow.authorization_url(prompt='consent')
+        auth_url, state = flow.authorization_url(
+            prompt='consent',
+            access_type='offline',
+            hl='en'
+        )
         flows[state] = flow
         session['oauth_state'] = state
         return None, None, auth_url
@@ -384,6 +436,26 @@ def get_services():
     people_service = build('people', 'v1', credentials=creds)
     calendar_service = build('calendar', 'v3', credentials=creds)
     return people_service, calendar_service, None
+
+
+def widerrufe_google_zugang(zugangsdaten):
+    """Widerruft den Refresh- oder Zugriffstoken direkt bei Google."""
+    token = zugangsdaten.refresh_token or zugangsdaten.token
+    if not token:
+        return False
+
+    daten = urllib.parse.urlencode({'token': token}).encode('utf-8')
+    anforderung = urllib.request.Request(
+        'https://oauth2.googleapis.com/revoke',
+        data=daten,
+        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+        method='POST'
+    )
+    try:
+        with urllib.request.urlopen(anforderung, timeout=10) as antwort:
+            return 200 <= antwort.status < 300
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError):
+        return False
 
 def get_or_create_calendar(service, name="Geburtstage"):
     emit_status(f"Suche nach Kalender '{name}'...")
@@ -405,7 +477,7 @@ def get_or_create_calendar(service, name="Geburtstage"):
     return created['id']
 
 def clear_calendar(service, calendar_id):
-    """Remove all events from the given calendar."""
+    """Entfernt alle Ereignisse aus dem angegebenen Kalender."""
     emit_status("Lösche vorhandene Einträge im Kalender...")
     page_token = None
     deleted_any = False
@@ -428,13 +500,14 @@ def clear_calendar(service, calendar_id):
                 try:
                     führe_google_api_aus(
                         service.events().delete(calendarId=calendar_id, eventId=ev['id']),
-                        f"Löschen des Ereignisses '{ev.get('summary', '')}'"
+                        'Löschen eines Kalenderereignisses'
                     )
                     deleted_any = True
                     time.sleep(0.1)
                     break
                 except HttpError as e:
-                    emit_status(f"❌ Fehler beim Löschen des Ereignisses '{ev.get('summary', '')}': {e}")
+                    status = google_fehler_status(e)
+                    emit_status(f"❌ Fehler beim Löschen eines Kalenderereignisses (HTTP {status}).")
                     break
 
         page_token = events.get('nextPageToken')
@@ -447,9 +520,10 @@ def clear_calendar(service, calendar_id):
         emit_status("Kalender war bereits leer.")
 
 def get_all_events(people_service):
-    """Fetch birthdays and all dated events from Google contacts."""
+    """Liest Geburtstage und datierte Ereignisse aus Google Kontakten."""
     emit_status("Lese Kontakte und Ereignisse...")
     events = []
+    kontaktzahl = 0
     page_token = None
     while True:
         results = führe_google_api_aus(
@@ -462,11 +536,15 @@ def get_all_events(people_service):
             'Abrufen der Kontakte'
         )
 
-        for person in results.get('connections', []):
+        kontakte = results.get('connections', [])
+        kontaktzahl += len(kontakte)
+        for person in kontakte:
             names = person.get('names', [])
             if not names:
                 continue
             name = names[0].get('displayName')
+            if not name:
+                continue
 
             for b in person.get('birthdays', []):
                 date = b.get('date')
@@ -481,7 +559,7 @@ def get_all_events(people_service):
             for e in person.get('events', []):
                 typ = (e.get('type') or '').lower()
                 if typ == 'birthday':
-                    # already handled above
+                    # Geburtstage wurden bereits über das eigene Feld erfasst.
                     continue
                 date = e.get('date')
                 if not date or not date.get('month') or not date.get('day'):
@@ -498,26 +576,56 @@ def get_all_events(people_service):
         if not page_token:
             break
 
-    return events
-
-def write_events_file(events, filename="Geburtstage.txt"):
-    """Write sorted events to a text file."""
-    events = sorted(
-        events,
-        key=lambda b: (b['date']['month'], b['date']['day'], b['date'].get('year', 0))
+    emit_status(
+        f"People API (contacts.readonly): {kontaktzahl} Google-Kontakte gelesen."
     )
+    emit_status(
+        f"{len(events)} datierte Kontaktfelder für die Verarbeitung gefunden."
+    )
+    return events, kontaktzahl
 
-    with open(filename, 'w') as f:
-        for ev in events:
-            d = ev['date']
-            year = d.get('year', 2000)
-            dt = datetime.date(year, d['month'], d['day'])
-            line = f"{dt.strftime('%d.%m.%Y')} {ev['name']}"
-            label = ev.get('label')
-            if label:
-                line += f" ({label})"
-            f.write(line + "\n")
-    emit_status(f"✏️ {filename} geschrieben")
+
+def formatiere_vorschau_datum(datum):
+    """Formatiert Tag und Monat, ohne das Geburtsjahr offenzulegen."""
+    monat = int(datum['month'])
+    tag = int(datum['day'])
+    datetime.date(2000, monat, tag)
+    return f"{tag}. {DEUTSCHE_MONATE[monat - 1]}"
+
+
+def erstelle_kontaktvorschau(ereignisse, kontaktzahl, suchbegriff=''):
+    """Erstellt eine datensparsame Vorschau aus gelesenen Kontaktfeldern."""
+    sortierte_ereignisse = sorted(
+        ereignisse,
+        key=lambda eintrag: (
+            eintrag['date']['month'],
+            eintrag['date']['day'],
+            eintrag['name'].casefold(),
+            eintrag.get('label', '').casefold(),
+        )
+    )
+    suchwert = suchbegriff.strip().casefold()
+    if suchwert:
+        sortierte_ereignisse = [
+            eintrag for eintrag in sortierte_ereignisse
+            if suchwert in eintrag['name'].casefold()
+            or suchwert in eintrag.get('label', '').casefold()
+        ]
+
+    einträge = [
+        {
+            'name': eintrag['name'],
+            'bezeichnung': eintrag.get('label') or 'Ereignis',
+            'datum': formatiere_vorschau_datum(eintrag['date']),
+        }
+        for eintrag in sortierte_ereignisse[:VORSCHAU_MAX_EINTRÄGE]
+    ]
+    return {
+        'kontakte_gesamt': kontaktzahl,
+        'ereignisse_gesamt': len(ereignisse),
+        'treffer_gesamt': len(sortierte_ereignisse),
+        'einträge': einträge,
+    }
 
 def create_events(calendar_service, calendar_id, events):
     emit_status("Prüfe vorhandene Ereignisse im Kalender...")
@@ -550,14 +658,14 @@ def create_events(calendar_service, calendar_id, events):
         if not page_token:
             break
 
-    for b in events:
+    gesamtzahl = len(events)
+    for index, b in enumerate(events, start=1):
         name = b['name']
         d = b['date']
         month = d['month']
         day = d['day']
         year = d.get('year', 2000)
         dt = datetime.date(year, month, day)
-        date_str = dt.strftime('%d.%m.%Y')
         event_type = b.get('event_type', 'event')
         label = b.get('label', '')
         if event_type == 'birthday':
@@ -569,7 +677,6 @@ def create_events(calendar_service, calendar_id, events):
         key = (summary, dt.isoformat())
 
         if key in existing:
-            emit_status(f"⚠️ {label} am {date_str} für {name} bereits vorhanden – übersprungen")
             skipped_count += 1
             continue
 
@@ -586,14 +693,26 @@ def create_events(calendar_service, calendar_id, events):
             calendar_service.events().insert(calendarId=calendar_id, body=event),
             'Einfügen'
         )
-        emit_status(f"✅ {label} am {date_str} für {name} eingetragen")
         created_count += 1
+        if index == gesamtzahl or index % 25 == 0:
+            emit_status(
+                f"Calendar API (calendar.app.created): {index} von {gesamtzahl} "
+                "Kontaktfeldern verarbeitet."
+            )
         time.sleep(EINFÜGE_PAUSE_SEKUNDEN)
+    emit_status(
+        f"Calendar API (calendar.app.created): {created_count} Einträge erstellt, "
+        f"{skipped_count} vorhandene Einträge übersprungen."
+    )
     return created_count, skipped_count
 
 @app.route('/')
 def index():
-    return render_template('index.html', csrf_token=hole_csrf_token())
+    return render_template(
+        'index.html',
+        csrf_token=hole_csrf_token(),
+        google_verbunden=os.path.exists(token_pfad())
+    )
 
 @app.route('/datenschutz')
 def privacy():
@@ -603,24 +722,40 @@ def privacy():
 def terms():
     return render_template('nutzungsbedingungen.html')
 
+
+@app.after_request
+def ergänze_sicherheitskopfzeilen(antwort):
+    """Setzt Schutzkopfzeilen für Browser und OAuth-Oberfläche."""
+    antwort.headers['X-Content-Type-Options'] = 'nosniff'
+    antwort.headers['X-Frame-Options'] = 'DENY'
+    antwort.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    antwort.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    antwort.headers['Content-Security-Policy'] = (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; "
+        "img-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; "
+        "base-uri 'self'; form-action 'self'"
+    )
+    if request.is_secure:
+        antwort.headers['Strict-Transport-Security'] = 'max-age=31536000'
+    return antwort
+
 def sync_events_ausführen(people_service, calendar_service):
     """Führt den eigentlichen Import aus und meldet den Fortschritt per WebSocket."""
     try:
-        all_events = get_all_events(people_service)
-        emit_status("✅ Kontakte geladen – bereite Kalender vor...")
+        all_events, _ = get_all_events(people_service)
+        emit_status("Kontakte geladen – bereite Kalender vor...")
         calendar_id = get_or_create_calendar(calendar_service)
         clear_calendar(calendar_service, calendar_id)
-        write_events_file(all_events)
         created_count, skipped_count = create_events(calendar_service, calendar_id, all_events)
     except HttpError as fehler:
         status = google_fehler_status(fehler)
         if status == 403 and "SERVICE_DISABLED" in str(fehler):
             emit_status("❌ People API oder Calendar API ist nicht aktiviert. Bitte in der Google Cloud Console einschalten und erneut versuchen.")
         else:
-            emit_status(f"❌ Google API Fehler beim Synchronisieren (HTTP {status}): {fehler}")
+            emit_status(f"❌ Google API Fehler beim Synchronisieren (HTTP {status}).")
         return "Error", 500
-    except Exception as fehler:
-        emit_status(f"❌ Unerwarteter Fehler beim Synchronisieren: {fehler}")
+    except Exception:
+        emit_status("❌ Unerwarteter Fehler beim Synchronisieren.")
         return "Error", 500
 
     if skipped_count:
@@ -640,6 +775,7 @@ def sync_events():
 
     people_service, calendar_service, auth_url = get_services()
     if auth_url:
+        session['oauth_fortsetzung'] = 'sync'
         return jsonify({'auth_url': auth_url}), 401
 
     sitzungs_id = aktuelle_sitzungs_id()
@@ -657,6 +793,66 @@ def sync_events():
     socketio.start_background_task(synchronisation_im_hintergrund)
     emit_status("Synchronisation im Hintergrund gestartet.", sitzungs_id=sitzungs_id)
     return jsonify({'status': 'gestartet'}), 202
+
+
+@app.route('/vorschau', methods=['POST'])
+def kontaktvorschau():
+    """Liefert eine begrenzte Vorschau der autorisierten Google-Kontaktdaten."""
+    if not csrf_token_ist_gueltig():
+        return jsonify({'fehler': 'Ungültiges CSRF-Token.'}), 400
+
+    inhalt = request.get_json(silent=True) or {}
+    suchbegriff = str(inhalt.get('suchbegriff', '')).strip()[:100]
+    people_service, _, auth_url = get_services()
+    if auth_url:
+        session['oauth_fortsetzung'] = 'vorschau'
+        return jsonify({'auth_url': auth_url}), 401
+
+    try:
+        ereignisse, kontaktzahl = get_all_events(people_service)
+        vorschau = erstelle_kontaktvorschau(ereignisse, kontaktzahl, suchbegriff)
+    except HttpError as fehler:
+        status = google_fehler_status(fehler)
+        emit_status(f"❌ Google API Fehler bei der Kontaktvorschau (HTTP {status}).")
+        return jsonify({'fehler': 'Google Kontakte konnten nicht gelesen werden.'}), 502
+    except Exception:
+        emit_status("❌ Unerwarteter Fehler bei der Kontaktvorschau.")
+        return jsonify({'fehler': 'Die Kontaktvorschau konnte nicht erstellt werden.'}), 500
+
+    return jsonify(vorschau)
+
+
+@app.route('/zugang-loeschen', methods=['POST'])
+def google_zugang_löschen():
+    """Widerruft Google-Zugriff und löscht den lokalen OAuth-Token."""
+    if not csrf_token_ist_gueltig():
+        return jsonify({'fehler': 'Ungültiges CSRF-Token.'}), 400
+
+    zugangsdaten = lade_zugangsdaten()
+    bei_google_widerrufen = True
+    if zugangsdaten:
+        bei_google_widerrufen = widerrufe_google_zugang(zugangsdaten)
+
+    lokal_gelöscht = lösche_zugangsdaten()
+    oauth_state = session.get('oauth_state')
+    if oauth_state:
+        flows.pop(oauth_state, None)
+    session.clear()
+
+    if zugangsdaten and not bei_google_widerrufen:
+        return jsonify({
+            'status': 'lokal_gelöscht',
+            'hinweis': (
+                'Die lokalen Zugangsdaten wurden gelöscht. Der Widerruf bei Google '
+                'konnte nicht bestätigt werden; entferne den Zugriff bei Bedarf zusätzlich im Google-Konto.'
+            )
+        })
+
+    return jsonify({
+        'status': 'gelöscht',
+        'lokal_gelöscht': lokal_gelöscht,
+        'bei_google_widerrufen': bei_google_widerrufen,
+    })
 
 @app.route('/oauth2callback')
 def oauth2callback():
@@ -683,8 +879,8 @@ def oauth2callback():
 
     try:
         flow.fetch_token(code=code)
-    except Exception as exc:
-        emit_status(f"❌ Fehler beim Abrufen des Tokens: {exc}")
+    except Exception:
+        emit_status("❌ Fehler beim Abrufen des OAuth-Tokens.")
         return "OAuth-Fehler", 500
 
     creds = flow.credentials
@@ -692,12 +888,18 @@ def oauth2callback():
     flows.pop(state, None)
     session.pop('oauth_state', None)
     emit_status("✅ OAuth erfolgreich abgeschlossen.")
-    return redirect(url_for('index', autostart=1))
+    fortsetzung = session.pop('oauth_fortsetzung', 'sync')
+    if fortsetzung not in ('sync', 'vorschau'):
+        fortsetzung = 'sync'
+    return redirect(url_for('index', autostart=fortsetzung))
 
 if __name__ == '__main__':
+    socketio.start_background_task(token_bereinigung_im_hintergrund)
     socketio.run(
         app,
         debug=umgebung_ist_wahr('FLASK_DEBUG', False),
         port=int(os.environ.get('PORT', '8022')),
         host=os.environ.get('HOST', '0.0.0.0')
     )
+
+# © 2025 - 2026 Erik Schauer, do1ffe@darc.de
