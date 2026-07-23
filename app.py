@@ -30,11 +30,6 @@ SCOPES = [
     'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
 ]
 ERLAUBTE_OAUTH_BEREICHE = set(SCOPES)
-DEUTSCHE_MONATE = (
-    'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
-)
-
 # Print all messages to console when True. When False only important
 # messages are shown.
 VERBOSE_CONSOLE = False
@@ -128,7 +123,6 @@ OAUTH_TOKEN_AUFBEWAHRUNG_TAGE = max(
     umgebung_als_int('OAUTH_TOKEN_AUFBEWAHRUNG_TAGE', 30)
 )
 TOKEN_BEREINIGUNGSINTERVALL_SEKUNDEN = 6 * 60 * 60
-VORSCHAU_MAX_EINTRÄGE = 8
 AKTIVE_STATUS_SITZUNG = ContextVar('aktive_status_sitzung', default=None)
 laufende_synchronisationen = set()
 synchronisations_sperre = eventlet.semaphore.Semaphore()
@@ -585,48 +579,6 @@ def get_all_events(people_service):
     return events, kontaktzahl
 
 
-def formatiere_vorschau_datum(datum):
-    """Formatiert Tag und Monat, ohne das Geburtsjahr offenzulegen."""
-    monat = int(datum['month'])
-    tag = int(datum['day'])
-    datetime.date(2000, monat, tag)
-    return f"{tag}. {DEUTSCHE_MONATE[monat - 1]}"
-
-
-def erstelle_kontaktvorschau(ereignisse, kontaktzahl, suchbegriff=''):
-    """Erstellt eine datensparsame Vorschau aus gelesenen Kontaktfeldern."""
-    sortierte_ereignisse = sorted(
-        ereignisse,
-        key=lambda eintrag: (
-            eintrag['date']['month'],
-            eintrag['date']['day'],
-            eintrag['name'].casefold(),
-            eintrag.get('label', '').casefold(),
-        )
-    )
-    suchwert = suchbegriff.strip().casefold()
-    if suchwert:
-        sortierte_ereignisse = [
-            eintrag for eintrag in sortierte_ereignisse
-            if suchwert in eintrag['name'].casefold()
-            or suchwert in eintrag.get('label', '').casefold()
-        ]
-
-    einträge = [
-        {
-            'name': eintrag['name'],
-            'bezeichnung': eintrag.get('label') or 'Ereignis',
-            'datum': formatiere_vorschau_datum(eintrag['date']),
-        }
-        for eintrag in sortierte_ereignisse[:VORSCHAU_MAX_EINTRÄGE]
-    ]
-    return {
-        'kontakte_gesamt': kontaktzahl,
-        'ereignisse_gesamt': len(ereignisse),
-        'treffer_gesamt': len(sortierte_ereignisse),
-        'einträge': einträge,
-    }
-
 def create_events(calendar_service, calendar_id, events):
     emit_status("Prüfe vorhandene Ereignisse im Kalender...")
     existing = set()
@@ -795,33 +747,6 @@ def sync_events():
     return jsonify({'status': 'gestartet'}), 202
 
 
-@app.route('/vorschau', methods=['POST'])
-def kontaktvorschau():
-    """Liefert eine begrenzte Vorschau der autorisierten Google-Kontaktdaten."""
-    if not csrf_token_ist_gueltig():
-        return jsonify({'fehler': 'Ungültiges CSRF-Token.'}), 400
-
-    inhalt = request.get_json(silent=True) or {}
-    suchbegriff = str(inhalt.get('suchbegriff', '')).strip()[:100]
-    people_service, _, auth_url = get_services()
-    if auth_url:
-        session['oauth_fortsetzung'] = 'vorschau'
-        return jsonify({'auth_url': auth_url}), 401
-
-    try:
-        ereignisse, kontaktzahl = get_all_events(people_service)
-        vorschau = erstelle_kontaktvorschau(ereignisse, kontaktzahl, suchbegriff)
-    except HttpError as fehler:
-        status = google_fehler_status(fehler)
-        emit_status(f"❌ Google API Fehler bei der Kontaktvorschau (HTTP {status}).")
-        return jsonify({'fehler': 'Google Kontakte konnten nicht gelesen werden.'}), 502
-    except Exception:
-        emit_status("❌ Unerwarteter Fehler bei der Kontaktvorschau.")
-        return jsonify({'fehler': 'Die Kontaktvorschau konnte nicht erstellt werden.'}), 500
-
-    return jsonify(vorschau)
-
-
 @app.route('/zugang-loeschen', methods=['POST'])
 def google_zugang_löschen():
     """Widerruft Google-Zugriff und löscht den lokalen OAuth-Token."""
@@ -889,7 +814,7 @@ def oauth2callback():
     session.pop('oauth_state', None)
     emit_status("✅ OAuth erfolgreich abgeschlossen.")
     fortsetzung = session.pop('oauth_fortsetzung', 'sync')
-    if fortsetzung not in ('sync', 'vorschau'):
+    if fortsetzung != 'sync':
         fortsetzung = 'sync'
     return redirect(url_for('index', autostart=fortsetzung))
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Datenschutzerklärung</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=20260722-01">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=20260723-01">
 </head>
 <body>
     <div class="seitenrahmen">
@@ -30,7 +30,7 @@
                 <a href="https://calendar.do1ffe.de">calendar.do1ffe.de</a>
                 personenbezogene Daten und Google-Nutzerdaten verarbeitet.
             </p>
-            <p><strong>Stand: 22. Juli 2026</strong></p>
+            <p><strong>Stand: 23. Juli 2026</strong></p>
 
             <h2>1. Verantwortlicher</h2>
             <p>
@@ -57,14 +57,13 @@
             <p>
                 Zusätzlich verarbeitet die Anwendung OAuth-Zugriffs- und Aktualisierungstokens,
                 eine zufällige Sitzungskennung, ein CSRF-Schutztoken, technische Statusmeldungen
-                und einen optional eingegebenen Suchbegriff für die Kontaktvorschau.
+                und zusammengefasste Zähler zum Ablauf der Synchronisierung.
             </p>
 
             <h2>3. Zweck und Verwendung</h2>
             <p>
-                Die Kontaktdaten werden ausschließlich verwendet, um dir eine begrenzte Vorschau
-                datierter Kontaktfelder anzuzeigen und nach deiner ausdrücklichen Aktion jährliche
-                Ganztagstermine im separaten Google Kalender „Geburtstage“ zu erstellen. Die
+                Die Kontaktdaten werden ausschließlich verwendet, um nach deiner ausdrücklichen
+                Aktion jährliche Ganztagstermine im separaten Google Kalender „Geburtstage“ zu erstellen. Die
                 Kalenderliste wird nur gelesen, um diesen Kalender zu finden oder bei Bedarf neu
                 anzulegen. Eine Nutzung für Werbung, Profilbildung, Bonitätsprüfung oder das
                 Trainieren allgemeiner KI- oder Machine-Learning-Modelle findet nicht statt.
@@ -87,23 +86,18 @@
                 <li>serverseitige Speicherung der OAuth-Tokens; Tokens gelangen nicht in den Browser-Cookie,</li>
                 <li>Dateirechte 0700 für das Token-Verzeichnis und 0600 für einzelne Token-Dateien,</li>
                 <li>Cookies mit <code>Secure</code>, <code>HttpOnly</code> und <code>SameSite=Lax</code>,</li>
-                <li>CSRF-Schutz für Vorschau, Synchronisierung und Löschung,</li>
+                <li>CSRF-Schutz für Synchronisierung und Löschung,</li>
                 <li>private WebSocket-Räume je Browsersitzung und restriktive Browser-Sicherheitskopfzeilen,</li>
-                <li>Datenminimierung durch drei zweckgebundene OAuth-Bereiche und eine Vorschau ohne Jahresangabe,</li>
+                <li>Datenminimierung durch drei zweckgebundene OAuth-Bereiche und fehlende lokale Kontaktspeicherung,</li>
                 <li>keine Ausgabe von Kontaktnamen oder Geburtstagen in dauerhaften Serverprotokollen.</li>
             </ul>
 
             <h2>6. Aufbewahrung und Löschung</h2>
             <ul>
                 <li>
-                    Namen und datierte Kontaktfelder werden nur während einer Vorschau oder
-                    Synchronisierung im Arbeitsspeicher des Servers gehalten und anschließend
+                    Namen und datierte Kontaktfelder werden nur während einer Synchronisierung
+                    im Arbeitsspeicher des Servers gehalten und anschließend
                     verworfen. Es gibt dafür keine Datenbank und keine lokale Exportdatei.
-                </li>
-                <li>
-                    Die Kontaktvorschau bleibt nur im geöffneten Browser sichtbar. Ein optionaler
-                    Suchbegriff liegt vorübergehend im Sitzungsspeicher des Browsers und wird nach
-                    erfolgreicher Vorschau oder spätestens beim Schließen des Tabs entfernt.
                 </li>
                 <li>
                     OAuth-Tokens werden höchstens 30 Tage seit ihrer letzten Nutzung aufbewahrt.

@@ -10,7 +10,6 @@ Ein Flask-Webinterface, um Geburtstage und andere datierte Ereignisse aus deinen
 - Leert den Kalender vor jeder Synchronisierung
 - Webinterface mit Live-Statusanzeige (via Socket.IO)
 - Aggregiertes Protokoll erscheint in Echtzeit direkt im Browser, ohne Kontaktdaten in Serverprotokolle zu schreiben
-- Datensparsame Kontaktvorschau mit optionalem Filter und ohne Anzeige des Geburtsjahres
 - Lokale OAuth2-Autorisierung via `credentials.json`
 - Jede Browsersitzung verwendet eigene OAuth-Daten (keine gemeinsame Token-Datei)
 - OAuth-Tokens werden nach 30 Tagen Inaktivität automatisch gelöscht
@@ -78,12 +77,9 @@ Beim ersten Start wirst du auf der Webseite nach der Google-Autorisierung
 gefragt. Klicke auf den angezeigten Link, erteile den Zugriff und kehre danach
 automatisch zur Web-App zurück.
 
-Über **Vorschau laden** kannst du vorab prüfen, welche datierten Kontaktfelder die
-People API mit `contacts.readonly` liefert. Die Vorschau zeigt höchstens acht Treffer
-und blendet vorhandene Jahresangaben aus. Klicke anschließend im Browser auf
-**Jetzt synchronisieren**. Aggregierte Statusmeldungen erscheinen live im Bereich
-„Live-Protokoll“. Namen, Geburtstage und andere datierte Kontaktfelder werden nur
-für den laufenden Vorgang im Arbeitsspeicher gehalten.
+Klicke im Browser auf **Jetzt synchronisieren**. Aggregierte Statusmeldungen
+erscheinen live im Bereich „Live-Protokoll“. Namen, Geburtstage und andere datierte
+Kontaktfelder werden nur für den laufenden Vorgang im Arbeitsspeicher gehalten.
 
 Mit **Google-Verbindung trennen** wird der verwendete OAuth-Token bei Google
 widerrufen und die serverseitige Token-Datei unmittelbar gelöscht. Die vollständige
@@ -94,5 +90,5 @@ unter [calendar.do1ffe.de/datenschutz](https://calendar.do1ffe.de/datenschutz).
 
 Die überarbeitete Demonstration für die Google-Prüfung ist öffentlich unter
 [oauth-verification-demo-2026-v2.mp4](https://calendar.do1ffe.de/static/oauth-verification-demo-2026-v2.mp4)
-abrufbar. Sie zeigt den OAuth-Ablauf, die sichtbare People-API-Kontaktvorschau für
-`contacts.readonly`, die beiden Calendar-Bereiche und die Datenschutzmaßnahmen.
+abrufbar. Sie zeigt den OAuth-Ablauf, die Verarbeitung über `contacts.readonly`,
+die beiden Calendar-Bereiche und die Datenschutzmaßnahmen.

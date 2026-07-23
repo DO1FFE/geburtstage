@@ -98,83 +98,6 @@ class GeburtstagsimportTest(unittest.TestCase):
         self.assertEqual(ereignisse[0]['label'], 'Geburtstag')
         self.assertEqual(ereignisse[1]['label'], 'Jahrestag')
 
-    def test_vorschau_filtert_und_gibt_kein_jahr_aus(self):
-        ereignisse = [
-            {
-                'name': 'Erik Schauer',
-                'date': {'year': 1978, 'month': 1, 'day': 11},
-                'label': 'Geburtstag',
-            },
-            {
-                'name': 'Anderer Kontakt',
-                'date': {'year': 2001, 'month': 5, 'day': 2},
-                'label': 'Geburtstag',
-            },
-        ]
-
-        vorschau = anwendung.erstelle_kontaktvorschau(ereignisse, 2, 'erik')
-
-        self.assertEqual(vorschau['treffer_gesamt'], 1)
-        self.assertEqual(vorschau['einträge'][0]['datum'], '11. Januar')
-        self.assertNotIn('1978', str(vorschau))
-
-    def test_vorschau_ist_auf_acht_einträge_begrenzt(self):
-        ereignisse = [
-            {
-                'name': f'Kontakt {nummer}',
-                'date': {'month': 1, 'day': nummer + 1},
-                'label': 'Geburtstag',
-            }
-            for nummer in range(12)
-        ]
-
-        vorschau = anwendung.erstelle_kontaktvorschau(ereignisse, 12)
-
-        self.assertEqual(vorschau['treffer_gesamt'], 12)
-        self.assertEqual(len(vorschau['einträge']), 8)
-
-    @patch.object(anwendung, 'get_all_events')
-    @patch.object(anwendung, 'get_services')
-    def test_vorschau_route_liefert_google_daten(self, get_services, get_all_events):
-        get_services.return_value = (object(), object(), None)
-        get_all_events.return_value = ([{
-            'name': 'Erik Schauer',
-            'date': {'year': 1978, 'month': 1, 'day': 11},
-            'label': 'Geburtstag',
-        }], 1)
-
-        antwort = self.client.post(
-            '/vorschau',
-            json={'suchbegriff': 'Erik'},
-            headers={'X-CSRF-Token': self.csrf_token()},
-        )
-
-        self.assertEqual(antwort.status_code, 200)
-        self.assertEqual(antwort.get_json()['einträge'][0]['datum'], '11. Januar')
-
-    @patch.object(anwendung, 'get_services')
-    def test_vorschau_merkt_oauth_fortsetzung(self, get_services):
-        get_services.return_value = (None, None, 'https://accounts.google.test/oauth')
-
-        antwort = self.client.post(
-            '/vorschau',
-            json={'suchbegriff': 'Erik'},
-            headers={'X-CSRF-Token': self.csrf_token()},
-        )
-
-        self.assertEqual(antwort.status_code, 401)
-        with self.client.session_transaction() as sitzung:
-            self.assertEqual(sitzung['oauth_fortsetzung'], 'vorschau')
-
-    def test_vorschau_weist_falsches_csrf_token_ab(self):
-        antwort = self.client.post(
-            '/vorschau',
-            json={},
-            headers={'X-CSRF-Token': 'falsch'},
-        )
-
-        self.assertEqual(antwort.status_code, 400)
-
     @patch.object(anwendung.Flow, 'from_client_secrets_file')
     @patch.object(anwendung, 'lade_zugangsdaten', return_value=None)
     def test_oauth_start_erzwingt_englisch_und_offline_zugriff(
@@ -199,17 +122,17 @@ class GeburtstagsimportTest(unittest.TestCase):
         lade_zugangsdaten.assert_called_once()
 
     @patch.object(anwendung, 'speichere_zugangsdaten')
-    def test_oauth_callback_setzt_vorschau_fort(self, speichere_zugangsdaten):
+    def test_oauth_callback_setzt_synchronisierung_fort(self, speichere_zugangsdaten):
         fluss = OAuthFluss()
         anwendung.flows['zustand'] = fluss
         with self.client.session_transaction() as sitzung:
             sitzung['oauth_state'] = 'zustand'
-            sitzung['oauth_fortsetzung'] = 'vorschau'
+            sitzung['oauth_fortsetzung'] = 'sync'
 
         antwort = self.client.get('/oauth2callback?state=zustand&code=code')
 
         self.assertEqual(antwort.status_code, 302)
-        self.assertTrue(antwort.location.endswith('/?autostart=vorschau'))
+        self.assertTrue(antwort.location.endswith('/?autostart=sync'))
         self.assertEqual(fluss.code, 'code')
         speichere_zugangsdaten.assert_called_once_with(fluss.credentials)
 
@@ -259,7 +182,9 @@ class GeburtstagsimportTest(unittest.TestCase):
         startseite = self.client.get('/')
         datenschutz = self.client.get('/datenschutz')
 
-        self.assertIn('contacts.readonly', startseite.get_data(as_text=True))
+        self.assertNotIn('Kontaktvorschau', startseite.get_data(as_text=True))
+        self.assertNotIn('contacts.readonly', startseite.get_data(as_text=True))
+        self.assertEqual(self.client.post('/vorschau').status_code, 404)
         self.assertIn('Aufbewahrung und Löschung', datenschutz.get_data(as_text=True))
         self.assertNotIn('pagead2.googlesyndication.com', startseite.get_data(as_text=True))
         self.assertEqual(startseite.headers['X-Frame-Options'], 'DENY')

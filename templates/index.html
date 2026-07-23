@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Google Geburtstagsimport</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=20260722-01">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=20260723-01">
     <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
 </head>
 <body>
@@ -86,38 +86,6 @@
             </section>
         </main>
 
-        <section class="vorschaufeld" aria-labelledby="vorschau-titel">
-            <div class="vorschau-kopf">
-                <div>
-                    <p class="eyebrow">People API</p>
-                    <h2 id="vorschau-titel">Kontaktvorschau</h2>
-                    <p>Datierte Kontaktfelder prüfen, bevor sie synchronisiert werden.</p>
-                </div>
-                <span class="bereichskennung">contacts.readonly</span>
-            </div>
-
-            <form class="vorschau-form" id="vorschau-form">
-                <label for="kontakt-suche">Name oder Ereignis</label>
-                <div class="vorschau-suche">
-                    <input
-                        id="kontakt-suche"
-                        name="suchbegriff"
-                        type="search"
-                        maxlength="100"
-                        autocomplete="off"
-                        placeholder="Optional filtern"
-                    >
-                    <button class="sekundärknopf" id="vorschau-button" type="submit">Vorschau laden</button>
-                </div>
-            </form>
-
-            <div class="auth-hinweis" id="vorschau-auth" aria-live="polite"></div>
-            <p class="vorschau-status" id="vorschau-status" aria-live="polite">
-                Noch keine Kontaktdaten geladen.
-            </p>
-            <ul class="vorschau-liste" id="vorschau-liste" aria-label="Datierte Kontaktfelder"></ul>
-        </section>
-
         <footer class="site-footer">
             <div class="footer-links">
                 <a href="{{ url_for('privacy') }}">Datenschutzerklärung</a>
@@ -135,22 +103,11 @@
         const syncButton = document.getElementById('sync-button');
         const oberstatusEl = document.getElementById('oberstatus');
         const liveStatusEl = document.getElementById('live-status');
-        const vorschauForm = document.getElementById('vorschau-form');
-        const vorschauButton = document.getElementById('vorschau-button');
-        const vorschauStatusEl = document.getElementById('vorschau-status');
-        const vorschauListeEl = document.getElementById('vorschau-liste');
-        const vorschauAuthEl = document.getElementById('vorschau-auth');
-        const kontaktSucheEl = document.getElementById('kontakt-suche');
         const trennenButton = document.getElementById('trennen-button');
         const csrfToken = "{{ csrf_token }}";
         const yearEl = document.getElementById('current-year');
         let synchronisationAktiv = false;
         yearEl.textContent = new Date().getFullYear();
-
-        const gespeicherterSuchbegriff = sessionStorage.getItem('vorschauSuchbegriff');
-        if (gespeicherterSuchbegriff) {
-            kontaktSucheEl.value = gespeicherterSuchbegriff;
-        }
 
         const socket = io();
         socket.on('connect', () => {
@@ -180,7 +137,7 @@
             }
         });
 
-        function zeigeAuthLink(authUrl, zielElement, fortsetzung) {
+        function zeigeAuthLink(authUrl, zielElement) {
             zielElement.replaceChildren();
 
             const box = document.createElement('div');
@@ -192,9 +149,7 @@
             link.textContent = 'Google-Anmeldung öffnen';
 
             const hinweis = document.createElement('p');
-            hinweis.textContent = fortsetzung === 'vorschau'
-                ? 'Nach der Bestätigung wird die Kontaktvorschau automatisch geladen.'
-                : 'Nach der Bestätigung läuft die Synchronisation automatisch weiter.';
+            hinweis.textContent = 'Nach der Bestätigung läuft die Synchronisation automatisch weiter.';
 
             box.append(link, hinweis);
             zielElement.appendChild(box);
@@ -226,7 +181,7 @@
 
             if (resp.status === 401) {
                 const data = await resp.json();
-                zeigeAuthLink(data.auth_url, authEl, 'sync');
+                zeigeAuthLink(data.auth_url, authEl);
                 oberstatusEl.textContent = 'Anmeldung';
                 syncButton.disabled = false;
                 synchronisationAktiv = false;
@@ -244,80 +199,6 @@
                 oberstatusEl.textContent = 'Läuft';
             }
         }
-
-        function rendereVorschau(daten) {
-            vorschauListeEl.replaceChildren();
-            const anzahl = daten.treffer_gesamt;
-            vorschauStatusEl.textContent =
-                `${anzahl} passende datierte Felder, ${daten.ereignisse_gesamt} insgesamt ` +
-                `aus ${daten.kontakte_gesamt} Kontakten.`;
-
-            if (!daten.einträge.length) {
-                const leer = document.createElement('li');
-                leer.className = 'vorschau-leer';
-                leer.textContent = 'Keine passenden datierten Kontaktfelder gefunden.';
-                vorschauListeEl.appendChild(leer);
-                return;
-            }
-
-            daten.einträge.forEach(eintrag => {
-                const zeile = document.createElement('li');
-                zeile.className = 'vorschau-eintrag';
-
-                const beschreibung = document.createElement('div');
-                const name = document.createElement('strong');
-                name.textContent = eintrag.name;
-                const art = document.createElement('span');
-                art.textContent = eintrag.bezeichnung;
-                beschreibung.append(name, art);
-
-                const datum = document.createElement('time');
-                datum.textContent = eintrag.datum;
-                zeile.append(beschreibung, datum);
-                vorschauListeEl.appendChild(zeile);
-            });
-        }
-
-        async function ladeVorschau(ereignis) {
-            if (ereignis) {
-                ereignis.preventDefault();
-            }
-            vorschauButton.disabled = true;
-            vorschauStatusEl.textContent = 'Kontaktfelder werden über die People API gelesen…';
-            vorschauAuthEl.replaceChildren();
-            sessionStorage.setItem('vorschauSuchbegriff', kontaktSucheEl.value);
-
-            try {
-                const antwort = await fetch('/vorschau', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': csrfToken
-                    },
-                    body: JSON.stringify({suchbegriff: kontaktSucheEl.value})
-                });
-                const daten = await antwort.json();
-
-                if (antwort.status === 401) {
-                    zeigeAuthLink(daten.auth_url, vorschauAuthEl, 'vorschau');
-                    vorschauStatusEl.textContent = 'Google-Anmeldung erforderlich.';
-                    return;
-                }
-                if (!antwort.ok) {
-                    throw new Error(daten.fehler || 'Kontaktvorschau fehlgeschlagen.');
-                }
-
-                rendereVorschau(daten);
-                sessionStorage.removeItem('vorschauSuchbegriff');
-            } catch (fehler) {
-                vorschauStatusEl.textContent = fehler.message;
-            } finally {
-                vorschauButton.disabled = false;
-            }
-        }
-
-        vorschauForm.addEventListener('submit', ladeVorschau);
 
         async function trenneGoogleVerbindung() {
             const bestätigt = window.confirm(
@@ -338,7 +219,6 @@
                 if (!antwort.ok) {
                     throw new Error(daten.fehler || 'Verbindung konnte nicht getrennt werden.');
                 }
-                sessionStorage.removeItem('vorschauSuchbegriff');
                 if (daten.hinweis) {
                     window.alert(daten.hinweis);
                 }
@@ -353,8 +233,6 @@
         const autostart = urlParams.get('autostart');
         if (autostart === '1' || autostart === 'sync') {
             startSync();
-        } else if (autostart === 'vorschau') {
-            ladeVorschau();
         }
         if (autostart) {
             urlParams.delete('autostart');
