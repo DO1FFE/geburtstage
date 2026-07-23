@@ -69,6 +69,14 @@ class GeburtstagsimportTest(unittest.TestCase):
         with self.client.session_transaction() as sitzung:
             return sitzung['csrf_token']
 
+    def test_zeitstempel_endet_mit_uhr(self):
+        zeitstempel = anwendung.aktueller_zeitstempel()
+
+        self.assertRegex(zeitstempel, r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} Uhr$')
+        self.assertNotIn('Europe/Berlin', zeitstempel)
+        self.assertNotIn('CEST', zeitstempel)
+        self.assertNotIn('CET', zeitstempel)
+
     def test_kontakte_werden_seitenweise_und_aggregiert_gelesen(self):
         dienst = PersonenDienst([
             {

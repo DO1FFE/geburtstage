@@ -91,7 +91,7 @@ def lade_flask_secret_key():
 
 def aktueller_zeitstempel():
     """Liefert den aktuellen Status-Zeitstempel in deutscher Ortszeit."""
-    return datetime.datetime.now(ANZEIGE_ZEITZONE).strftime('%Y-%m-%d %H:%M:%S %Z (Europe/Berlin)')
+    return datetime.datetime.now(ANZEIGE_ZEITZONE).strftime('%Y-%m-%d %H:%M:%S Uhr')
 
 
 lade_env_datei()
