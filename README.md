@@ -9,6 +9,7 @@ Ein Flask-Webinterface, um Geburtstage und andere datierte Ereignisse aus deinen
 - Fügt nur **neue** Ereignisse ein (Vermeidung von Duplikaten)
 - Leert den Kalender vor jeder Synchronisierung
 - Webinterface mit Live-Statusanzeige (via Socket.IO)
+- Gespeicherter Hell-/Dunkelmodus mit automatischer Systemvorgabe
 - Aggregiertes Protokoll erscheint in Echtzeit direkt im Browser, ohne Kontaktdaten in Serverprotokolle zu schreiben
 - Lokale OAuth2-Autorisierung via `credentials.json`
 - Jede Browsersitzung verwendet eigene OAuth-Daten (keine gemeinsame Token-Datei)

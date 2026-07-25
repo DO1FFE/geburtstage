@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Google Geburtstagsimport</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=20260723-01">
+    <script src="{{ url_for('static', filename='farbschema.js') }}?v=20260725-01"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=20260725-01">
     <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
 </head>
 <body>
@@ -20,6 +21,17 @@
             <nav class="kopfnavigation" aria-label="Seitennavigation">
                 <a class="kopf-link" href="{{ url_for('privacy') }}">Datenschutz</a>
                 <a class="kopf-link" href="{{ url_for('terms') }}">Nutzungsbedingungen</a>
+                <button
+                    class="farbschema-schalter"
+                    type="button"
+                    data-farbschema-schalter
+                    aria-label="Dunkelmodus aktivieren"
+                    aria-pressed="false"
+                    title="Dunkelmodus aktivieren"
+                >
+                    <span class="farbschema-symbol farbschema-mond" aria-hidden="true">☾</span>
+                    <span class="farbschema-symbol farbschema-sonne" aria-hidden="true">☀</span>
+                </button>
             </nav>
         </header>
 

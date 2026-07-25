@@ -189,11 +189,16 @@ class GeburtstagsimportTest(unittest.TestCase):
     def test_seiten_enthalten_datenschutz_und_sicherheitskopfzeilen(self):
         startseite = self.client.get('/')
         datenschutz = self.client.get('/datenschutz')
+        nutzungsbedingungen = self.client.get('/nutzungsbedingungen')
 
         self.assertNotIn('Kontaktvorschau', startseite.get_data(as_text=True))
         self.assertNotIn('contacts.readonly', startseite.get_data(as_text=True))
         self.assertEqual(self.client.post('/vorschau').status_code, 404)
         self.assertIn('Aufbewahrung und Löschung', datenschutz.get_data(as_text=True))
+        for antwort in (startseite, datenschutz, nutzungsbedingungen):
+            seite = antwort.get_data(as_text=True)
+            self.assertIn('data-farbschema-schalter', seite)
+            self.assertIn('farbschema.js', seite)
         self.assertNotIn('pagead2.googlesyndication.com', startseite.get_data(as_text=True))
         self.assertEqual(startseite.headers['X-Frame-Options'], 'DENY')
         self.assertEqual(startseite.headers['X-Content-Type-Options'], 'nosniff')

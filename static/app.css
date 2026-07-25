@@ -1,4 +1,5 @@
 :root {
+    color-scheme: light;
     --hintergrund: #f7f8fb;
     --fläche: #ffffff;
     --fläche-gedämpft: #f0f5f4;
@@ -11,6 +12,58 @@
     --warnung: #a16207;
     --fehler: #b42318;
     --schatten: 0 18px 50px rgba(23, 32, 38, 0.08);
+    --fokus: rgba(15, 118, 110, 0.28);
+    --marken-schatten: 0 10px 30px rgba(23, 32, 38, 0.08);
+    --hover-rand: rgba(15, 118, 110, 0.35);
+    --primär-text: #ffffff;
+    --primär-schatten: 0 12px 28px rgba(15, 118, 110, 0.24);
+    --primär-deaktiviert: #8ba8a4;
+    --trennen-hover-rand: rgba(180, 35, 24, 0.35);
+    --trennen-hover-hintergrund: #fff3f2;
+    --auth-rand: #f0d58d;
+    --auth-hintergrund: #fff8e6;
+    --auth-text: #5f4308;
+    --auth-link-rand: #deb85d;
+    --auth-link-hintergrund: #ffffff;
+    --auth-link-text: #66480a;
+    --live-ring: rgba(15, 118, 110, 0.14);
+    --protokoll-hintergrund: #111827;
+    --protokoll-text: #e8eef2;
+    --protokoll-leise: #aab6c2;
+}
+
+:root[data-farbschema="dunkel"] {
+    color-scheme: dark;
+    --hintergrund: #151817;
+    --fläche: #202522;
+    --fläche-gedämpft: #29312d;
+    --text: #f1f5f2;
+    --text-leise: #b5c0ba;
+    --linie: #3d4842;
+    --akzent: #2bb7a8;
+    --akzent-dunkel: #69d8ca;
+    --akzent-weich: #183c37;
+    --warnung: #f4bf53;
+    --fehler: #ff938a;
+    --schatten: 0 18px 50px rgba(0, 0, 0, 0.28);
+    --fokus: rgba(105, 216, 202, 0.38);
+    --marken-schatten: 0 10px 30px rgba(0, 0, 0, 0.24);
+    --hover-rand: rgba(105, 216, 202, 0.42);
+    --primär-text: #071b18;
+    --primär-schatten: 0 12px 28px rgba(43, 183, 168, 0.2);
+    --primär-deaktiviert: #526b65;
+    --trennen-hover-rand: rgba(255, 147, 138, 0.46);
+    --trennen-hover-hintergrund: #3b2625;
+    --auth-rand: #75602e;
+    --auth-hintergrund: #332d1f;
+    --auth-text: #f5d995;
+    --auth-link-rand: #8b7134;
+    --auth-link-hintergrund: #272419;
+    --auth-link-text: #f5d995;
+    --live-ring: rgba(43, 183, 168, 0.2);
+    --protokoll-hintergrund: #0d1110;
+    --protokoll-text: #e8eeeb;
+    --protokoll-leise: #9daba4;
 }
 
 * {
@@ -53,7 +106,7 @@ a {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible {
-    outline: 3px solid rgba(15, 118, 110, 0.28);
+    outline: 3px solid var(--fokus);
     outline-offset: 3px;
 }
 
@@ -86,7 +139,7 @@ input:focus-visible {
     border: 1px solid var(--linie);
     border-radius: 8px;
     background: var(--fläche);
-    box-shadow: 0 10px 30px rgba(23, 32, 38, 0.08);
+    box-shadow: var(--marken-schatten);
     font-size: 24px;
 }
 
@@ -138,6 +191,43 @@ h1 {
     justify-content: flex-end;
 }
 
+.farbschema-schalter {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--linie);
+    border-radius: 8px;
+    background: var(--fläche);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.farbschema-schalter:hover {
+    border-color: var(--hover-rand);
+    background: var(--akzent-weich);
+    color: var(--akzent-dunkel);
+}
+
+.farbschema-symbol {
+    font-size: 1.18rem;
+    line-height: 1;
+}
+
+.farbschema-sonne {
+    display: none;
+}
+
+:root[data-farbschema="dunkel"] .farbschema-mond {
+    display: none;
+}
+
+:root[data-farbschema="dunkel"] .farbschema-sonne {
+    display: inline;
+}
+
 .kopf-link,
 .auth-link {
     display: inline-flex;
@@ -156,7 +246,7 @@ h1 {
 
 .kopf-link:hover,
 .auth-link:hover {
-    border-color: rgba(15, 118, 110, 0.35);
+    border-color: var(--hover-rand);
     background: var(--akzent-weich);
     color: var(--akzent-dunkel);
 }
@@ -239,7 +329,7 @@ h1 {
     border: 0;
     border-radius: 8px;
     background: var(--akzent);
-    color: #ffffff;
+    color: var(--primär-text);
     cursor: pointer;
     font-size: 1rem;
     font-weight: 700;
@@ -247,12 +337,12 @@ h1 {
 
 .primärknopf:hover {
     background: var(--akzent-dunkel);
-    box-shadow: 0 12px 28px rgba(15, 118, 110, 0.24);
+    box-shadow: var(--primär-schatten);
     transform: translateY(-1px);
 }
 
 .primärknopf:disabled {
-    background: #8ba8a4;
+    background: var(--primär-deaktiviert);
     cursor: wait;
     box-shadow: none;
     transform: none;
@@ -280,8 +370,8 @@ h1 {
 }
 
 .trennknopf:hover {
-    border-color: rgba(180, 35, 24, 0.35);
-    background: #fff3f2;
+    border-color: var(--trennen-hover-rand);
+    background: var(--trennen-hover-hintergrund);
 }
 
 .trennknopf:disabled {
@@ -307,10 +397,10 @@ h1 {
     display: grid;
     gap: 10px;
     padding: 14px;
-    border: 1px solid #f0d58d;
+    border: 1px solid var(--auth-rand);
     border-radius: 8px;
-    background: #fff8e6;
-    color: #5f4308;
+    background: var(--auth-hintergrund);
+    color: var(--auth-text);
 }
 
 .auth-box p {
@@ -320,9 +410,9 @@ h1 {
 
 .auth-link {
     width: fit-content;
-    border-color: #deb85d;
-    background: #ffffff;
-    color: #66480a;
+    border-color: var(--auth-link-rand);
+    background: var(--auth-link-hintergrund);
+    color: var(--auth-link-text);
 }
 
 .verbindungsaktion {
@@ -362,7 +452,7 @@ h1 {
     height: 9px;
     border-radius: 50%;
     background: var(--akzent);
-    box-shadow: 0 0 0 5px rgba(15, 118, 110, 0.14);
+    box-shadow: 0 0 0 5px var(--live-ring);
 }
 
 .log {
@@ -372,8 +462,8 @@ h1 {
     padding: 18px 22px;
     overflow-y: auto;
     overflow-x: hidden;
-    background: #111827;
-    color: #e8eef2;
+    background: var(--protokoll-hintergrund);
+    color: var(--protokoll-text);
     font-family: "DejaVu Sans Mono", Consolas, monospace;
     font-size: 0.9rem;
     line-height: 1.55;
@@ -383,7 +473,7 @@ h1 {
 
 .log:empty::before {
     content: "Bereit.";
-    color: #aab6c2;
+    color: var(--protokoll-leise);
 }
 
 .textfläche {
