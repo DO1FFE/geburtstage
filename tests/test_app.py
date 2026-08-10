@@ -1,7 +1,10 @@
+import json
 import os
+import re
 import tempfile
 import time
 import unittest
+import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 from unittest.mock import patch
 
@@ -202,6 +205,102 @@ class GeburtstagsimportTest(unittest.TestCase):
         self.assertNotIn('pagead2.googlesyndication.com', startseite.get_data(as_text=True))
         self.assertEqual(startseite.headers['X-Frame-Options'], 'DENY')
         self.assertEqual(startseite.headers['X-Content-Type-Options'], 'nosniff')
+
+    def test_startseite_hat_vollständige_seo_metadaten_und_inhalt(self):
+        antwort = self.client.get('/')
+        seite = antwort.get_data(as_text=True)
+
+        self.assertEqual(antwort.status_code, 200)
+        self.assertIn(
+            '<title>Google-Geburtstage in einen Kalender importieren | DO1FFE</title>',
+            seite,
+        )
+        self.assertIn('<meta name="description"', seite)
+        self.assertIn('<meta name="robots" content="index, follow, max-image-preview:large">', seite)
+        self.assertIn(
+            '<link rel="canonical" href="https://calendar.do1ffe.de/">',
+            seite,
+        )
+        self.assertEqual(seite.count('<link rel="canonical"'), 1)
+        self.assertIn('<meta property="og:url" content="https://calendar.do1ffe.de/">', seite)
+        self.assertIn('<meta name="twitter:card" content="summary">', seite)
+        self.assertIn(
+            '<h1>Google-Geburtstage in einen eigenen Kalender importieren</h1>',
+            seite,
+        )
+        self.assertIn('Klicke auf <strong>Jetzt synchronisieren</strong>', seite)
+        self.assertNotIn('beschreibung-titel', seite)
+        aktuelles_jahr = anwendung.datetime.datetime.now(anwendung.ANZEIGE_ZEITZONE).year
+        copyright_jahre = (
+            f'2025 - {aktuelles_jahr}' if aktuelles_jahr > 2025 else '2025'
+        )
+        self.assertIn(
+            f'© {copyright_jahre} Erik Schauer, do1ffe@darc.de',
+            seite,
+        )
+
+        treffer = re.search(
+            r'<script type="application/ld\+json">\s*(.*?)\s*</script>',
+            seite,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(treffer)
+        strukturierte_daten = json.loads(treffer.group(1))
+        self.assertEqual(strukturierte_daten['@type'], 'WebApplication')
+        self.assertEqual(strukturierte_daten['url'], 'https://calendar.do1ffe.de/')
+        self.assertEqual(strukturierte_daten['inLanguage'], 'de-DE')
+
+    def test_robots_und_sitemap_nennen_nur_öffentliche_startseite(self):
+        robots = self.client.get('/robots.txt')
+        sitemap = self.client.get('/sitemap.xml')
+
+        self.assertEqual(robots.status_code, 200)
+        self.assertIn('Disallow: /oauth2callback', robots.get_data(as_text=True))
+        self.assertIn(
+            'Sitemap: https://calendar.do1ffe.de/sitemap.xml',
+            robots.get_data(as_text=True),
+        )
+        wurzel = ElementTree.fromstring(sitemap.data)
+        urls = wurzel.findall('{http://www.sitemaps.org/schemas/sitemap/0.9}url')
+        self.assertEqual(len(urls), 1)
+        self.assertEqual(
+            urls[0].findtext('{http://www.sitemaps.org/schemas/sitemap/0.9}loc'),
+            'https://calendar.do1ffe.de/',
+        )
+
+    def test_private_und_parametrisierte_pfade_werden_nicht_indexiert(self):
+        startseite = self.client.get('/')
+        parametrisierte_startseite = self.client.get('/?autostart=sync')
+        datenschutz = self.client.get('/datenschutz')
+
+        self.assertNotIn('X-Robots-Tag', startseite.headers)
+        self.assertEqual(
+            parametrisierte_startseite.headers['X-Robots-Tag'],
+            'noindex, follow, noarchive',
+        )
+        self.assertIn(
+            '<meta name="robots" content="noindex, follow, noarchive">',
+            parametrisierte_startseite.get_data(as_text=True),
+        )
+        self.assertEqual(
+            datenschutz.headers['X-Robots-Tag'],
+            'noindex, follow, noarchive',
+        )
+
+    def test_404_seite_hat_status_h1_noindex_und_keinen_canonical(self):
+        antwort = self.client.get('/nicht-vorhandene-seite')
+        seite = antwort.get_data(as_text=True)
+
+        self.assertEqual(antwort.status_code, 404)
+        self.assertEqual(
+            antwort.headers['X-Robots-Tag'],
+            'noindex, follow, noarchive',
+        )
+        self.assertIn('<meta name="robots" content="noindex, follow, noarchive">', seite)
+        self.assertNotIn('<link rel="canonical"', seite)
+        self.assertEqual(seite.count('<h1'), 1)
+        self.assertIn('Seite nicht gefunden', seite)
+        self.assertNotIn('/home/', seite)
 
 
 if __name__ == '__main__':

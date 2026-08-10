@@ -15,7 +15,7 @@ import urllib.request
 from contextvars import ContextVar
 from zoneinfo import ZoneInfo
 
-from flask import Flask, render_template, jsonify, request, session, url_for, redirect, has_request_context
+from flask import Flask, Response, render_template, jsonify, request, session, url_for, redirect, has_request_context
 from flask_socketio import SocketIO, join_room
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google_auth_oauthlib.flow import Flow
@@ -35,6 +35,8 @@ ERLAUBTE_OAUTH_BEREICHE = set(SCOPES)
 VERBOSE_CONSOLE = False
 PROJEKT_DIR = os.path.dirname(os.path.abspath(__file__))
 ANZEIGE_ZEITZONE = ZoneInfo('Europe/Berlin')
+OEFFENTLICHE_BASIS_URL = 'https://calendar.do1ffe.de'
+COPYRIGHT_STARTJAHR = 2025
 
 
 def umgebung_ist_wahr(name, standard=False):
@@ -126,6 +128,20 @@ TOKEN_BEREINIGUNGSINTERVALL_SEKUNDEN = 6 * 60 * 60
 AKTIVE_STATUS_SITZUNG = ContextVar('aktive_status_sitzung', default=None)
 laufende_synchronisationen = set()
 synchronisations_sperre = eventlet.semaphore.Semaphore()
+
+
+@app.context_processor
+def globale_vorlagenwerte():
+    """Stellt domainweit verwendete, nicht sensible Vorlagenwerte bereit."""
+    aktuelles_jahr = datetime.datetime.now(ANZEIGE_ZEITZONE).year
+    if aktuelles_jahr > COPYRIGHT_STARTJAHR:
+        copyright_jahre = f'{COPYRIGHT_STARTJAHR} - {aktuelles_jahr}'
+    else:
+        copyright_jahre = str(COPYRIGHT_STARTJAHR)
+    return {
+        'copyright_jahre': copyright_jahre,
+        'oeffentliche_basis_url': OEFFENTLICHE_BASIS_URL,
+    }
 
 
 def emit_status(msg, sitzungs_id=None):
@@ -663,7 +679,12 @@ def index():
     return render_template(
         'index.html',
         csrf_token=hole_csrf_token(),
-        google_verbunden=os.path.exists(token_pfad())
+        google_verbunden=os.path.exists(token_pfad()),
+        robots_inhalt=(
+            'noindex, follow, noarchive'
+            if request.query_string
+            else 'index, follow, max-image-preview:large'
+        ),
     )
 
 @app.route('/datenschutz')
@@ -673,6 +694,52 @@ def privacy():
 @app.route('/nutzungsbedingungen')
 def terms():
     return render_template('nutzungsbedingungen.html')
+
+
+@app.route('/robots.txt')
+def robots_txt():
+    inhalt = (
+        'User-agent: *\n'
+        'Allow: /\n'
+        'Disallow: /sync\n'
+        'Disallow: /oauth2callback\n'
+        'Disallow: /zugang-loeschen\n'
+        f'Sitemap: {OEFFENTLICHE_BASIS_URL}/sitemap.xml\n'
+    )
+    return Response(inhalt, mimetype='text/plain')
+
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    inhalt = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f'  <url><loc>{OEFFENTLICHE_BASIS_URL}/</loc></url>\n'
+        '</urlset>\n'
+    )
+    return Response(inhalt, mimetype='application/xml')
+
+
+@app.errorhandler(404)
+def seite_nicht_gefunden(_fehler):
+    return render_template(
+        'fehler.html',
+        fehlercode=404,
+        seitentitel='Seite nicht gefunden | Google Geburtstagsimport',
+        überschrift='Seite nicht gefunden',
+        hinweis='Diese Adresse ist im Google-Geburtstagsimport nicht vorhanden.',
+    ), 404
+
+
+@app.errorhandler(500)
+def interner_fehler(_fehler):
+    return render_template(
+        'fehler.html',
+        fehlercode=500,
+        seitentitel='Technischer Fehler | Google Geburtstagsimport',
+        überschrift='Technischer Fehler',
+        hinweis='Die Anfrage konnte vorübergehend nicht verarbeitet werden. Bitte versuche es später erneut.',
+    ), 500
 
 
 @app.after_request
@@ -689,6 +756,25 @@ def ergänze_sicherheitskopfzeilen(antwort):
     )
     if request.is_secure:
         antwort.headers['Strict-Transport-Security'] = 'max-age=31536000'
+
+    nicht_indexierbare_pfade = {
+        '/datenschutz',
+        '/nutzungsbedingungen',
+        '/oauth2callback',
+        '/sync',
+        '/zugang-loeschen',
+    }
+    ist_nicht_indexierbar = (
+        request.path in nicht_indexierbare_pfade
+        or bool(request.query_string)
+        or antwort.status_code >= 400
+        or (request.path.startswith('/static/') and request.path.endswith('.mp4'))
+    )
+    if ist_nicht_indexierbar:
+        antwort.headers['X-Robots-Tag'] = 'noindex, follow, noarchive'
+
+    if request.path == '/' or request.path in nicht_indexierbare_pfade:
+        antwort.headers['Cache-Control'] = 'no-store, max-age=0'
     return antwort
 
 def sync_events_ausführen(people_service, calendar_service):

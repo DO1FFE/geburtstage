@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Nutzungsbedingungen</title>
+    <title>Nutzungsbedingungen | Google Geburtstagsimport</title>
+    <meta name="description" content="Nutzungsbedingungen für den Google-Geburtstagsimport von DO1FFE.">
+    <meta name="robots" content="noindex, follow, noarchive">
+    <link rel="canonical" href="{{ oeffentliche_basis_url }}/nutzungsbedingungen">
     <script src="{{ url_for('static', filename='farbschema.js') }}?v=20260725-01"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=20260725-02">
 </head>
@@ -89,16 +92,14 @@
 
         <footer class="site-footer">
             <div class="footer-links">
+                <a href="https://do1ffe.de/">DO1FFE</a>
                 <a href="{{ url_for('index') }}">Synchronisation</a>
                 <a href="{{ url_for('privacy') }}">Datenschutzerklärung</a>
             </div>
             <div>
-                © 2025 - <span id="current-year"></span> Erik Schauer - do1ffe@darc.de
+                © {{ copyright_jahre }} Erik Schauer, do1ffe@darc.de
             </div>
         </footer>
     </div>
-    <script>
-        document.getElementById('current-year').textContent = new Date().getFullYear();
-    </script>
 </body>
 </html>

@@ -3,10 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Google Geburtstagsimport</title>
+    <title>Google-Geburtstage in einen Kalender importieren | DO1FFE</title>
+    <meta name="description" content="Google-Geburtstage und andere datierte Kontaktfelder nach eigener Freigabe in einen separaten Google Kalender übertragen.">
+    <meta name="robots" content="{{ robots_inhalt }}">
+    <link rel="canonical" href="{{ oeffentliche_basis_url }}/">
+    <meta property="og:locale" content="de_DE">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="DO1FFE">
+    <meta property="og:title" content="Google-Geburtstage in einen Kalender importieren">
+    <meta property="og:description" content="Geburtstage und andere datierte Ereignisse aus Google Kontakten kontrolliert in einen eigenen Kalender übertragen.">
+    <meta property="og:url" content="{{ oeffentliche_basis_url }}/">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Google-Geburtstagsimport">
+    <meta name="twitter:description" content="Datierte Kontaktfelder nach eigener Google-Freigabe in einen separaten Kalender übertragen.">
     <script src="{{ url_for('static', filename='farbschema.js') }}?v=20260725-01"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=20260725-02">
     <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
+    <script type="application/ld+json">
+        {{ {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Google Geburtstagsimport",
+            "url": oeffentliche_basis_url ~ "/",
+            "description": "Webanwendung zum Übertragen von Geburtstagen und anderen datierten Feldern aus Google Kontakten in einen separaten Google Kalender.",
+            "applicationCategory": "UtilitiesApplication",
+            "operatingSystem": "Webbrowser",
+            "inLanguage": "de-DE",
+            "isAccessibleForFree": true,
+            "author": {
+                "@type": "Person",
+                "name": "Erik Schauer",
+                "url": "https://do1ffe.de/"
+            }
+        } | tojson }}
+    </script>
 </head>
 <body>
     <div class="seitenrahmen">
@@ -15,7 +45,7 @@
                 <div class="marken-symbol" aria-hidden="true">31</div>
                 <div class="marken-text">
                     <p class="eyebrow">Google Kontakte</p>
-                    <h1>Geburtstagsimport</h1>
+                    <h1>Google-Geburtstage in einen eigenen Kalender importieren</h1>
                 </div>
             </div>
             <nav class="kopfnavigation" aria-label="Seitennavigation">
@@ -100,11 +130,12 @@
 
         <footer class="site-footer">
             <div class="footer-links">
+                <a href="https://do1ffe.de/">DO1FFE</a>
                 <a href="{{ url_for('privacy') }}">Datenschutzerklärung</a>
                 <a href="{{ url_for('terms') }}">Nutzungsbedingungen</a>
             </div>
             <div>
-                © 2025 - <span id="current-year"></span> Erik Schauer - do1ffe@darc.de
+                © {{ copyright_jahre }} Erik Schauer, do1ffe@darc.de
             </div>
         </footer>
     </div>
@@ -117,9 +148,7 @@
         const liveStatusEl = document.getElementById('live-status');
         const trennenButton = document.getElementById('trennen-button');
         const csrfToken = "{{ csrf_token }}";
-        const yearEl = document.getElementById('current-year');
         let synchronisationAktiv = false;
-        yearEl.textContent = new Date().getFullYear();
 
         const socket = io();
         socket.on('connect', () => {
